@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "reporters": ["html", "clear-text", "progress", "json"],
+  "coverageAnalysis": "off",
+  "tsconfigFile": "tsconfig.stryker.json",
+  "mutate": [
+    "client/src/game/helper.ts"
+  ],
+  "ignorePatterns": [
+    "coverage/**/*",
+    "html/**/*",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/*.d.ts"
+  ],
+  "disableTypeChecks": "{client,server,shared}/**/*.{js,ts,jsx,tsx,html,vue}",
+  "vitest": {
+    "configFile": "vitest.stryker.config.ts",
+    "related": false
+  },
+  "tempDirName": ".stryker-tmp"
+}

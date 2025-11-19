@@ -1,0 +1,76 @@
+# Enforce LF line endings on checkout to avoid automatic CRLF conversion on Windows
+* text=auto eol=lf
+
+# Explicitly treat common text file types as LF
+*.js     text eol=lf
+*.ts     text eol=lf
+*.tsx    text eol=lf
+*.jsx    text eol=lf
+*.json   text eol=lf
+*.css    text eol=lf
+*.scss   text eol=lf
+*.md     text eol=lf
+*.html   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.sh     text eol=lf
+*.ps1    text eol=lf
+
+# Treat common binary formats as binary so Git won't try to normalize them
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.svg    binary
+*.pdf    binary
+*.ico    binary
+*.zip    binary
+
+# Additional binary types (media, fonts, archives, executables, DBs, images)
+*.webp   binary
+*.bmp    binary
+*.tif    binary
+*.tiff   binary
+*.mp3    binary
+*.wav    binary
+*.ogg    binary
+*.flac   binary
+*.mp4    binary
+*.mov    binary
+*.webm   binary
+
+# Fonts
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary
+*.eot    binary
+
+# Archives and compressed
+*.tar    binary
+*.gz     binary
+*.tgz    binary
+*.7z     binary
+*.rar    binary
+
+# Executables, libraries, wasm, bytecode
+*.wasm   binary
+*.class  binary
+*.jar    binary
+*.exe    binary
+*.dll    binary
+*.dylib  binary
+
+# Databases and large binaries
+*.sqlite binary
+*.db     binary
+
+# Images from editors
+*.psd    binary
+
+# Mobile packages
+*.apk    binary
+
+
+# Windows batch files can use CRLF, leave them alone if present
+*.bat    text eol=crlf
