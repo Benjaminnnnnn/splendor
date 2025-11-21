@@ -1,7 +1,7 @@
-import { Server, Socket } from 'socket.io';
-import { GameService } from '../services/gameService';
 import fs from 'fs';
 import path from 'path';
+import { Server, Socket } from 'socket.io';
+import { GameService } from '../services/gameService';
 
 // Create a simple file logger for socket events
 const logsDir = path.join(__dirname, '../../logs');
@@ -80,6 +80,7 @@ export class GameSocketHandler {
 
           let updatedGame;
           switch (action) {
+            // TODO: add an action to communicate with GPT
             case 'take-tokens':
               logToFile(`Processing take-tokens action for player ${payload.playerId} in game ${gameId}`);
               updatedGame = await this.gameService.takeTokens(gameId, payload.playerId, payload.tokens);
