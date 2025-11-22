@@ -12,6 +12,7 @@ export class ReserveCardCommand extends GameCommand {
 
   run(game: Game): void {
     this.validateGameInProgress(game);
+    this.validatePlayerTurn(game, this.playerId);
 
     const player = game.getPlayer(this.playerId);
     const card = game.removeCard(this.cardId);
@@ -25,13 +26,15 @@ export class ReserveCardCommand extends GameCommand {
       throw new Error('Cannot reserve more than 3 cards');
     }
 
+    // Give gold token if available and player has room
     if (bank.get(GemType.GOLD) > 0) {
       if (player.getTotalTokens() >= 10) {
         throw new Error('Cannot exceed 10 tokens. Must return tokens first.');
       }
+      bank.remove(GemType.GOLD, 1);
+      player.addTokens(GemType.GOLD, 1);
     }
 
-    player.addTokens(GemType.GOLD, 1);
     player.addReservedCard(card);
 
     game.advanceTurn();

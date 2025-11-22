@@ -90,14 +90,9 @@ export class TakeTokensCommand extends GameCommand {
     }
 
     // Transfer tokens from bank to player
-    for (const [gem, count] of Object.entries(this.tokens)) {
-      const gemType = gem as GemType;
-      const amount = count || 0;
-      
-      if (amount > 0) {
-        bank.remove(gemType, amount);
-        player.addTokens(gemType, amount);
-      }
+    for (const [gem, count] of selectedTokens) {
+      bank.remove(gem, count);
+      player.addTokens(gem, count);
     }
 
     game.advanceTurn();
