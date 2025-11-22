@@ -76,64 +76,44 @@ class GameService {
 
   async takeTokens(gameId: string, playerId: string, tokens: Partial<TokenBank>): Promise<Game> {
     const currentGame = await this.getGame(gameId);
-
-    try {
-      this.gameEngine.takeTokens(currentGame, playerId, tokens);
-      const response = await axios.post(`${this.baseURL}/${gameId}/actions/take-tokens`, {
-        playerId,
-        tokens
-      });
-      return response.data;
-    } catch (clientError) {
-      throw clientError;
-    }
+    this.gameEngine.takeTokens(currentGame, playerId, tokens);
+    const response = await axios.post(`${this.baseURL}/${gameId}/actions/take-tokens`, {
+      playerId,
+      tokens
+    });
+    return response.data;
   }
 
   async purchaseCard(gameId: string, playerId: string, cardId: string, payment?: Partial<TokenBank>): Promise<Game> {
     const currentGame = await this.getGame(gameId);
-
-    try {
-      this.gameEngine.purchaseCard(currentGame, playerId, cardId, payment);
-      const response = await axios.post(`${this.baseURL}/${gameId}/actions/purchase-card`, {
-        playerId,
-        cardId,
-        payment
-      });
-      return response.data;
-    } catch (clientError) {
-      throw clientError;
-    }
+    this.gameEngine.purchaseCard(currentGame, playerId, cardId, payment);
+    const response = await axios.post(`${this.baseURL}/${gameId}/actions/purchase-card`, {
+      playerId,
+      cardId,
+      payment
+    });
+    return response.data;
   }
 
   async reserveCard(gameId: string, playerId: string, cardId: string): Promise<Game> {
     const currentGame = await this.getGame(gameId);
-
-    try {
-      this.gameEngine.reserveCard(currentGame, playerId, cardId);
-      const response = await axios.post(`${this.baseURL}/${gameId}/actions/reserve-card`, {
-        playerId,
-        cardId
-      });
-      return response.data;
-    } catch (clientError) {
-      throw clientError;
-    }
+    this.gameEngine.reserveCard(currentGame, playerId, cardId);
+    const response = await axios.post(`${this.baseURL}/${gameId}/actions/reserve-card`, {
+      playerId,
+      cardId
+    });
+    return response.data;
   }
 
   async purchaseReservedCard(gameId: string, playerId: string, cardId: string, payment?: Partial<TokenBank>): Promise<Game> {
     const currentGame = await this.getGame(gameId);
-
-    try {
-      this.gameEngine.purchaseReservedCard(currentGame, playerId, cardId, payment);
-      const response = await axios.post(`${this.baseURL}/${gameId}/actions/purchase-reserved-card`, {
-        playerId,
-        cardId,
-        payment
-      });
-      return response.data;
-    } catch (clientError) {
-      throw clientError;
-    }
+    this.gameEngine.purchaseReservedCard(currentGame, playerId, cardId, payment);
+    const response = await axios.post(`${this.baseURL}/${gameId}/actions/purchase-reserved-card`, {
+      playerId,
+      cardId,
+      payment
+    });
+    return response.data;
   }
 
   async endGame(gameId: string, playerId: string): Promise<Game> {

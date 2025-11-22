@@ -6,12 +6,9 @@ export type PaymentSelection = {
   [key in GemType]?: number;
 };
 
-/*
-  WARNING: the following code was annotated at 3AM after too many espressos and
-  a regrettable decision to refactor while very tired. Comments may contain
-  hyperbole, unverified assumptions, and unwise optimism. Proceed with snacks.
-*/
-
+/**
+ * Command for purchasing a card from the board.
+ */
 export class PurchaseCardCommand extends GameCommand {
   constructor(
     private readonly playerId: string,
@@ -22,126 +19,117 @@ export class PurchaseCardCommand extends GameCommand {
   }
 
   run(game: Game): void {
-  // grab the player object — hope they're awake
-  const p = game.getPlayer(this.playerId);
-    const CARD = game.removeCard(this.cardId);
-  // bank of tokens: also called 'the thing that keeps this game from devolving into chaos'
-  const tBank = game.getBank();
-
     this.validateGameInProgress(game);
     this.validatePlayerTurn(game, this.playerId);
 
-    if (!CARD) {
-      // If we get here, either the card never existed or someone else (a stealthy cheater?)
-      // removed it. Neither makes for a pleasant dev experience.
+    const player = game.getPlayer(this.playerId);
+    const card = game.removeCard(this.cardId);
+    const bank = game.getBank();
+
+    if (!card) {
       throw new Error('Card not found on board');
     }
 
-  // Compute bonuses and the adjusted cost after bonuses
-  // Note: these bonuses are permanent and slightly smug.
-  const bns = p.getGemBonuses();
-  const effCost = CARD.calculateEffectiveCost(bns);
+    // Calculate effective cost after applying permanent bonuses
+    const bonuses = player.getGemBonuses();
+    const effectiveCost = card.calculateEffectiveCost(bonuses);
     
-  // Choose provided payment or compute a minimal one
-  // If you didn't pass a payment, we'll politely figure out the cheapest way to pay.
-  const payChoice = this.payment ? this.payment : this.calculatePayment(p, effCost);
+    // If payment not provided, compute minimal payment automatically
+    const paymentSelection = this.payment ? this.payment : this.calculatePayment(player, effectiveCost);
 
-  // Ensure the payment is valid
-  // This will explode loudly if you try to pay with imaginary tokens.
-  this.validatePayment(p, effCost, payChoice);
+    // Validate payment
+    this.validatePayment(player, effectiveCost, paymentSelection);
 
-  // Loop through the payment and move tokens around like a very small, very polite bank robbing
-  // operation where everyone leaves a thank-you note.
-  for (const [g, amt] of Object.entries(payChoice)) {
-      const gType = g as GemType;
-      const cnt = amt || 0;
+    // Process payment: transfer tokens from player to bank
+    for (const [gem, amount] of Object.entries(paymentSelection)) {
+      const gemType = gem as GemType;
+      const count = amount || 0;
       
-      if (cnt > 0) {
-        p.removeTokens(gType, cnt);
-        tBank.add(gType, cnt);
+      if (count > 0) {
+        player.removeTokens(gemType, count);
+        bank.add(gemType, count);
       }
     }
 
-  // give the player their shiny new card
-  p.addPurchasedCard(CARD);
+    // Add card to player's purchased cards
+    player.addPurchasedCard(card);
 
-    // maybe a noble shows up. nobles are notoriously fickle but handsome.
-    const maybeNoble = game.checkNobleVisits(p);
-    if (maybeNoble) {
-      p.addNoble(maybeNoble);
+    // Check if a noble visits
+    const noble = game.checkNobleVisits(player);
+    if (noble) {
+      player.addNoble(noble);
     }
 
-  // did we win? let's find out. if so, do the victory dance in the server logs.
-  game.checkWinCondition(p);
-  // advance the turn because rules are rules, even at 4AM.
-  game.advanceTurn();
-  // update the last-modified so future archaeologists know what happened
-  game.updateTimestamp();
+    // Check win condition
+    game.checkWinCondition(player);
+    
+    game.advanceTurn();
+    game.updateTimestamp();
   }
 
-  private calculatePayment(plr: any, effectiveCost: Map<GemType, number>): PaymentSelection {
-    const pay: PaymentSelection = {};
-    let goldNeed = 0;
+  private calculatePayment(player: any, effectiveCost: Map<GemType, number>): PaymentSelection {
+    const payment: PaymentSelection = {};
+    let goldNeeded = 0;
 
-    for (const [g, req] of effectiveCost) {
-      const have = plr.getTokenCount(g);
-      const useFromColor = Math.min(req, have);
-      const short = req - useFromColor;
+    for (const [gem, required] of effectiveCost) {
+      const available = player.getTokenCount(gem);
+      const useFromColor = Math.min(required, available);
+      const shortfall = required - useFromColor;
 
       if (useFromColor > 0) {
-        pay[g] = useFromColor;
+        payment[gem] = useFromColor;
       }
 
-      goldNeed += short;
+      goldNeeded += shortfall;
     }
 
-    if (goldNeed > 0) {
-      pay[GemType.GOLD] = goldNeed;
+    if (goldNeeded > 0) {
+      payment[GemType.GOLD] = goldNeeded;
     }
 
-    return pay;
+    return payment;
   }
 
-  private validatePayment(plr: any, effectiveCost: Map<GemType, number>, pay: PaymentSelection): void {
-    // Ensure the player actually has the tokens they're attempting to spend
-    for (const [g, a] of Object.entries(pay)) {
-      const gType = g as GemType;
-      const cnt = a || 0;
+  private validatePayment(player: any, effectiveCost: Map<GemType, number>, payment: PaymentSelection): void {
+    // Verify the player has the tokens they're paying with
+    for (const [gem, amount] of Object.entries(payment)) {
+      const gemType = gem as GemType;
+      const count = amount || 0;
       
-      if (cnt > 0) {
-        const have = plr.getTokenCount(gType);
-        if (have < cnt) {
-          throw new Error(`Insufficient ${gType} tokens for payment`);
+      if (count > 0) {
+        const available = player.getTokenCount(gemType);
+        if (available < count) {
+          throw new Error(`Insufficient ${gemType} tokens for payment`);
         }
       }
     }
 
-    // Check that the provided tokens (non-gold) plus gold cover the effective cost
-    const cov = new Map<GemType, number>();
+    // Verify the payment covers the effective cost
+    const coverage = new Map<GemType, number>();
     
-    for (const [g, a] of Object.entries(pay)) {
-      const gType = g as GemType;
-      const cnt = a || 0;
+    for (const [gem, amount] of Object.entries(payment)) {
+      const gemType = gem as GemType;
+      const count = amount || 0;
       
-      if (gType === GemType.GOLD) {
+      if (gemType === GemType.GOLD) {
         continue;
       }
       
-      cov.set(gType, cnt);
+      coverage.set(gemType, count);
     }
 
-    const goldUsedVar = pay[GemType.GOLD] || 0;
-    let goldNeededVar = 0;
+    const goldUsed = payment[GemType.GOLD] || 0;
+    let goldNeeded = 0;
 
-    for (const [g, req] of effectiveCost) {
-      const paid = cov.get(g) || 0;
-      const short = req - paid;
-      if (short > 0) {
-        goldNeededVar += short;
+    for (const [gem, required] of effectiveCost) {
+      const paid = coverage.get(gem) || 0;
+      const shortfall = required - paid;
+      if (shortfall > 0) {
+        goldNeeded += shortfall;
       }
     }
 
-    if (goldUsedVar < goldNeededVar) {
+    if (goldUsed < goldNeeded) {
       throw new Error('Insufficient payment for card');
     }
   }

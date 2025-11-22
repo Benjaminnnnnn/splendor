@@ -41,12 +41,13 @@ const GameActions: React.FC<GameActionsProps> = ({ selectedTokens, onAction, isC
 
   const getConfirmationMessage = () => {
     switch (confirmDialog.action) {
-      case 'take-tokens':
+      case 'take-tokens': {
         const selectedGems = Object.entries(selectedTokens || {})
           .filter(([, count]) => count && (count as number) > 0)
           .map(([gem, count]) => `${count} ${gem}`)
           .join(', ');
         return `Are you sure you want to take ${selectedGems}?`;
+      }
       default:
         return 'Are you sure you want to perform this action?';
     }

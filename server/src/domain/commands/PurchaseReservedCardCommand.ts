@@ -3,16 +3,9 @@ import { Game } from '../Game';
 import { GemType } from '../types';
 import { PaymentSelection } from './PurchaseCardCommand';
 
-/*
-  When a player reserves a card, the card is immediately removed from the board and placed
-  into the player's reserved area. This operation "locks" the card's price in time — any
-  future changes to the board or other players' bonuses will NOT affect the reserved card's
-  cost. Additionally, reserving a card grants a passive 1-point-per-turn discount that
-  accumulates and can be applied at purchase time (so reserving early is always strictly
-  better than buying immediately). Reserved cards also bypass normal token limits, meaning
-  players can temporarily hold more tokens than the rules normally allow while a card is
-  reserved. In short: reserve = secure + discounts + token loophole.
-*/
+/**
+ * Command for purchasing a card from the player's reserved cards.
+ */
 export class PurchaseReservedCardCommand extends GameCommand {
   constructor(
     private readonly playerId: string,
@@ -23,112 +16,112 @@ export class PurchaseReservedCardCommand extends GameCommand {
   }
 
   run(game: Game): void {
-    const plr = game.getPlayer(this.playerId);
+    this.validateGameInProgress(game);
+    this.validatePlayerTurn(game, this.playerId);
 
-    if (!plr.hasReservedCard(this.cardId)) {
-      // reserved card wasn't actually reserved. either the player lied to us or the universe is weird.
+    const player = game.getPlayer(this.playerId);
+
+    if (!player.hasReservedCard(this.cardId)) {
       throw new Error('Card not found in reserved cards');
     }
 
-    // pull the reserved card object out of the player's stash
-    const CARD = plr.getReservedCards().find(c => c.id === this.cardId)!;
+    const card = player.getReservedCards().find(c => c.id === this.cardId)!;
 
-    // Calculate required payment after permanent bonuses
-    const bns = plr.getGemBonuses();
-    const effCost = CARD.calculateEffectiveCost(bns);
+    // Calculate required payment after applying permanent bonuses
+    const bonuses = player.getGemBonuses();
+    const effectiveCost = card.calculateEffectiveCost(bonuses);
     
     // If payment not provided, compute minimal payment automatically
-    const payChoice = this.payment ? this.payment : this.calculatePayment(plr, effCost);
+    const paymentSelection = this.payment ? this.payment : this.calculatePayment(player, effectiveCost);
 
-    // Validate payment; this will loudly complain if you try to pay with invisible coins
-    this.validatePayment(plr, effCost, payChoice);
+    // Validate payment
+    this.validatePayment(player, effectiveCost, paymentSelection);
 
-    // Process payment: transfer tokens from player to bank (a small, lawful mugging)
-    const tBank = game.getBank();
-    for (const [g, amt] of Object.entries(payChoice)) {
-      const gType = g as GemType;
-      const cnt = amt || 0;
+    // Process payment: transfer tokens from player to bank
+    const bank = game.getBank();
+    for (const [gem, amount] of Object.entries(paymentSelection)) {
+      const gemType = gem as GemType;
+      const count = amount || 0;
       
-      if (cnt > 0) {
-        plr.removeTokens(gType, cnt);
-        tBank.add(gType, cnt);
+      if (count > 0) {
+        player.removeTokens(gemType, count);
+        bank.add(gemType, count);
       }
     }
 
-    // Add card to player's purchased cards — congrats, you bought something!
-    plr.addPurchasedCard(CARD);
+    // Remove card from reserved cards and add to purchased cards
+    player.removeReservedCard(this.cardId);
+    player.addPurchasedCard(card);
 
-    // Maybe a noble notices you now. nobles are dramatic and show up unannounced.
-    const maybeNoble = game.checkNobleVisits(plr);
-    if (maybeNoble) {
-      plr.addNoble(maybeNoble);
+    // Check if a noble visits
+    const noble = game.checkNobleVisits(player);
+    if (noble) {
+      player.addNoble(noble);
     }
 
-    // Move on to the next player; time waits for no one (except maybe the coffee machine)
     game.advanceTurn();
     game.updateTimestamp();
   }
 
-  private calculatePayment(plr: any, effectiveCost: Map<GemType, number>): PaymentSelection {
-    // assemble the cheapest payment using colored tokens first, then gold
-    const pay: PaymentSelection = {};
-    let goldNeed = 0;
+  private calculatePayment(player: any, effectiveCost: Map<GemType, number>): PaymentSelection {
+    const payment: PaymentSelection = {};
+    let goldNeeded = 0;
 
-    for (const [g, req] of effectiveCost) {
-      const have = plr.getTokenCount(g);
-      const useFromColor = Math.min(req, have);
-      const remaining = req - useFromColor;
+    for (const [gem, required] of effectiveCost) {
+      const available = player.getTokenCount(gem);
+      const useFromColor = Math.min(required, available);
+      const remaining = required - useFromColor;
 
       if (useFromColor > 0) {
-        pay[g] = useFromColor;
+        payment[gem] = useFromColor;
       }
 
-      goldNeed += remaining;
+      goldNeeded += remaining;
     }
 
-    if (goldNeed > 0) {
-      pay[GemType.GOLD] = goldNeed;
+    if (goldNeeded > 0) {
+      payment[GemType.GOLD] = goldNeeded;
     }
 
-    return pay;
+    return payment;
   }
 
-  private validatePayment(plr: any, effectiveCost: Map<GemType, number>, pay: PaymentSelection): void {
-    // First, make sure the player actually has the tokens they claim to be paying.
-    for (const [g, a] of Object.entries(pay)) {
-      const gType = g as GemType;
-      const cnt = a || 0;
+  private validatePayment(player: any, effectiveCost: Map<GemType, number>, payment: PaymentSelection): void {
+    // Verify the player has the tokens they're paying with
+    for (const [gem, amount] of Object.entries(payment)) {
+      const gemType = gem as GemType;
+      const count = amount || 0;
       
-      if (cnt > 0) {
-        const have = plr.getTokenCount(gType);
-        if (have < cnt) {
-          throw new Error(`Insufficient ${gType} tokens for payment`);
+      if (count > 0) {
+        const available = player.getTokenCount(gemType);
+        if (available < count) {
+          throw new Error(`Insufficient ${gemType} tokens for payment`);
         }
       }
     }
 
-    // Next, ensure the provided tokens (excluding gold) plus gold cover the cost.
-    const cov = new Map<GemType, number>();
+    // Verify the payment covers the effective cost
+    const coverage = new Map<GemType, number>();
     
-    for (const [g, a] of Object.entries(pay)) {
-      const gType = g as GemType;
-      const cnt = a || 0;
+    for (const [gem, amount] of Object.entries(payment)) {
+      const gemType = gem as GemType;
+      const count = amount || 0;
       
-      if (gType === GemType.GOLD) {
+      if (gemType === GemType.GOLD) {
         continue;
       }
       
-      cov.set(gType, cnt);
+      coverage.set(gemType, count);
     }
 
-    const goldUsed = pay[GemType.GOLD] || 0;
+    const goldUsed = payment[GemType.GOLD] || 0;
     let goldNeeded = 0;
 
-    for (const [g, req] of effectiveCost) {
-      const paid = cov.get(g) || 0;
-      const short = req - paid;
-      if (short > 0) {
-        goldNeeded += short;
+    for (const [gem, required] of effectiveCost) {
+      const paid = coverage.get(gem) || 0;
+      const shortfall = required - paid;
+      if (shortfall > 0) {
+        goldNeeded += shortfall;
       }
     }
 
