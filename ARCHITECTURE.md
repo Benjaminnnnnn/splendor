@@ -560,18 +560,6 @@ SMTP_PORT=587
 
 ---
 
-## Future Enhancements
-
-- **AI Integration**: Add OpenAI for AI opponents (infrastructure ready)
-- **Persistence**: Replace in-memory game storage with database
-- **Authentication**: JWT tokens for stateless auth
-- **Real-time Presence**: Show online/offline status
-- **Game Replay**: Store and replay game history
-- **Tournament Mode**: Organize multi-game tournaments
-- **Achievements**: Track and reward player accomplishments
-
----
-
 ## Resources
 
 - [Splendor Rules](https://www.spacecowboys.fr/splendor)
