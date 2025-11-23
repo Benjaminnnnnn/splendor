@@ -33,5 +33,8 @@
     "kill-port": "^2.0.1",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "openai": "^6.9.1"
   }
 }
