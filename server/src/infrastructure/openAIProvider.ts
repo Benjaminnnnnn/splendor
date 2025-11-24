@@ -1,0 +1,29 @@
+import OpenAI from "openai";
+
+export class OpenAIProvider {
+  private client: OpenAI;
+
+  constructor() {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY environment variable is not set");
+    }
+
+    this.client = new OpenAI({
+      apiKey,
+    });
+  }
+
+  getClient(): OpenAI {
+    return this.client;
+  }
+
+  async sendMessage(input: string): Promise<string> {
+    const response = await this.client.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: input }],
+    });
+
+    return response.choices[0].message.content || "";
+  }
+}
