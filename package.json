@@ -9,6 +9,7 @@
     "test:ui": "vitest --ui --coverage",
     "test:e2e": "playwright test",
     "coverage": "vitest run --coverage",
+    "postinstall": "npm install --prefix server && npm install --prefix client",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install",
     "kill": "kill-port 3000 3001 3002",
     "mutate": "stryker run"
