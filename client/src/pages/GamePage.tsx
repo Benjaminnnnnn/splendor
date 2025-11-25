@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { Game, GameState } from '../../../shared/types/game';
 import { gameService } from '../services/gameService';
+import { aiService } from '../services/aiService';
 import { socketService } from '../services/socketService';
 import GameBoard from '../components/GameBoard';
 import PlayerArea from '../components/PlayerArea';
@@ -29,6 +30,8 @@ const GamePage: React.FC = () => {
   const [endGameDialogOpen, setEndGameDialogOpen] = useState(false);
   const [isEndingGame, setIsEndingGame] = useState(false);
   const [gameTerminatedDialog, setGameTerminatedDialog] = useState(false);
+  const [aiRecommendation, setAiRecommendation] = useState<string>('');
+  const [isLoadingRecommendation, setIsLoadingRecommendation] = useState(false);
 
   useEffect(() => {
     if (!gameId) return;
@@ -88,6 +91,33 @@ const GamePage: React.FC = () => {
       setShowGameOverDialog(true);
     }
   }, [game, showGameOverDialog]);
+
+  // Fetch AI recommendation when it's the current player's turn
+  useEffect(() => {
+    const fetchRecommendation = async () => {
+      if (!game || !currentPlayer || !gameId) return;
+      
+      // Only fetch if it's the player's turn and game is in progress
+      const isPlayerTurn = game.players[game.currentPlayerIndex]?.id === currentPlayer;
+      if (!isPlayerTurn || game.state !== GameState.IN_PROGRESS) {
+        setAiRecommendation('');
+        return;
+      }
+
+      try {
+        setIsLoadingRecommendation(true);
+        const recommendation = await aiService.getRecommendation(gameId, currentPlayer);
+        setAiRecommendation(recommendation);
+      } catch (error) {
+        console.error('Error fetching AI recommendation:', error);
+        setAiRecommendation('Unable to get AI recommendation at this time.');
+      } finally {
+        setIsLoadingRecommendation(false);
+      }
+    };
+
+    fetchRecommendation();
+  }, [game?.currentPlayerIndex, game?.state, currentPlayer, gameId]);
 
   const handleGameAction = async (action: string, payload: any) => {
     if (!game || !gameId || !currentPlayer) return;
@@ -208,6 +238,8 @@ const GamePage: React.FC = () => {
             Boolean(currentPlayer && game.players[game.currentPlayerIndex]?.id === currentPlayer && game.state !== GameState.FINISHED)
           }
           onEndGame={openEndGameDialog}
+          aiRecommendation={aiRecommendation}
+          isLoadingRecommendation={isLoadingRecommendation}
         />
       </Box>
 
