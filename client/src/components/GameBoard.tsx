@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Typography, Box, Button, Tooltip } from '@mui/material';
-import { ExitToApp } from '@mui/icons-material';
+import { Typography, Box, Button, Tooltip, Paper, CircularProgress } from '@mui/material';
+import { ExitToApp, Psychology } from '@mui/icons-material';
 import { GameBoard as GameBoardType, Card, GameState } from '../../../shared/types/game';
 import { borderRadius, colors } from '../theme';
 import GameCard from './GameCard';
@@ -18,6 +18,8 @@ interface GameBoardProps {
   gameState: GameState;
   isCurrentPlayerTurn: boolean;
   onEndGame: () => void;
+  aiRecommendation?: string;
+  isLoadingRecommendation?: boolean;
 }
 
 const GameBoard: React.FC<GameBoardProps> = ({
@@ -27,10 +29,53 @@ const GameBoard: React.FC<GameBoardProps> = ({
   onTokenSelectionChange,
   gameState,
   isCurrentPlayerTurn,
-  onEndGame
+  onEndGame,
+  aiRecommendation,
+  isLoadingRecommendation = false,
 }) => {
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [cardDialogOpen, setCardDialogOpen] = useState(false);
+
+  // Parse AI recommendation JSON
+  const parseRecommendation = (rec: string | undefined) => {
+    if (!rec) return null;
+    try {
+      // Strip markdown code blocks if present
+      let cleanedRec = rec.trim();
+      if (cleanedRec.startsWith('```json')) {
+        cleanedRec = cleanedRec.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      } else if (cleanedRec.startsWith('```')) {
+        cleanedRec = cleanedRec.replace(/```\n?/g, '');
+      }
+      return JSON.parse(cleanedRec.trim());
+    } catch (e) {
+      console.error('Failed to parse AI recommendation:', e);
+      return { reasoning: rec }; // Fallback to plain text
+    }
+  };
+
+  // Format action text for display
+  const formatAction = (action: string | undefined) => {
+    if (!action) return 'Recommendation';
+    const actionMap: { [key: string]: string } = {
+      'take_tokens': 'Take Tokens',
+      'purchase_card': 'Purchase Card',
+      'reserve_card': 'Reserve Card',
+      'purchase_reserved_card': 'Purchase Reserved Card',
+      'wait': 'Wait'
+    };
+    return actionMap[action] || action.replace(/_/g, ' ');
+  };
+
+  // Format token details nicely
+  const formatTokens = (tokens: { [key: string]: number }) => {
+    return Object.entries(tokens)
+      .filter(([_, count]) => count > 0)
+      .map(([gem, count]) => `${count} ${gem}`)
+      .join(', ');
+  };
+
+  const recommendation = parseRecommendation(aiRecommendation);
 
   // Use DevCard dimensions (160x220)
   const cardSize = { width: 160, height: 220 };
@@ -216,7 +261,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
     <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1.5 }}>
       {/* Action Dock - Left Side */}
       <Box sx={{ 
-        width: '180px', 
+        width: '240px', 
         flexShrink: 0,
         position: 'sticky',
         top: 0,
@@ -231,6 +276,164 @@ const GameBoard: React.FC<GameBoardProps> = ({
           selectedTokens={selectedTokens}
           onTokenSelectionChange={onTokenSelectionChange}
         />
+        
+        {/* AI Advisor */}
+        <Paper
+          sx={{
+            background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.15) 0%, rgba(75, 0, 130, 0.15) 100%)',
+            border: '1px solid rgba(138, 43, 226, 0.3)',
+            borderRadius: `${borderRadius.md}px`,
+            p: 1.5,
+            minHeight: '150px',
+            maxHeight: '300px',
+            overflow: 'auto',
+            '&::-webkit-scrollbar': {
+              width: '6px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: 'rgba(138, 43, 226, 0.5)',
+              borderRadius: '3px',
+            },
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+            <Psychology sx={{ fontSize: '1rem', color: '#9370DB' }} />
+            <Typography
+              variant="subtitle2"
+              sx={{
+                color: '#9370DB',
+                fontWeight: 600,
+                fontSize: '0.75rem',
+              }}
+            >
+              AI Advisor
+            </Typography>
+          </Box>
+          {isLoadingRecommendation ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CircularProgress size={16} sx={{ color: '#9370DB' }} />
+              <Typography
+                variant="body2"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  fontSize: '0.7rem',
+                  fontStyle: 'italic',
+                }}
+              >
+                Analyzing game state...
+              </Typography>
+            </Box>
+          ) : (
+            <Box>
+              {recommendation ? (
+                <>
+                  {/* Action Badge */}
+                  <Box
+                    sx={{
+                      display: 'inline-block',
+                      bgcolor: 'rgba(255, 215, 0, 0.15)',
+                      border: '1px solid rgba(255, 215, 0, 0.4)',
+                      borderRadius: '4px',
+                      px: 1,
+                      py: 0.5,
+                      mb: 1,
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#FFD700',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {formatAction(recommendation.action)}
+                    </Typography>
+                  </Box>
+
+                  {/* Reasoning */}
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.95)',
+                      fontSize: '0.72rem',
+                      lineHeight: 1.5,
+                      mb: 1,
+                    }}
+                  >
+                    {recommendation.reasoning}
+                  </Typography>
+
+                  {/* Details Section */}
+                  {recommendation.details && Object.keys(recommendation.details).length > 0 && (
+                    <Box
+                      sx={{
+                        bgcolor: 'rgba(255, 255, 255, 0.05)',
+                        borderRadius: '4px',
+                        p: 0.75,
+                        mt: 0.75,
+                      }}
+                    >
+                      {recommendation.details.tokens && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: 'rgba(255, 255, 255, 0.85)',
+                            fontSize: '0.65rem',
+                            display: 'block',
+                          }}
+                        >
+                          Tokens: {formatTokens(recommendation.details.tokens)}
+                        </Typography>
+                      )}
+                      {recommendation.details.cardTier && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: 'rgba(255, 255, 255, 0.85)',
+                            fontSize: '0.65rem',
+                            display: 'block',
+                          }}
+                        >
+                          Tier {recommendation.details.cardTier}
+                          {recommendation.details.gemBonus && ` • ${recommendation.details.gemBonus} bonus`}
+                          {recommendation.details.prestigeValue !== undefined && ` • ${recommendation.details.prestigeValue} pts`}
+                        </Typography>
+                      )}
+                      {recommendation.confidence && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: recommendation.confidence === 'high' ? '#90EE90' : 
+                                   recommendation.confidence === 'medium' ? '#FFD700' : '#FFA07A',
+                            fontSize: '0.6rem',
+                            display: 'block',
+                            mt: 0.5,
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {recommendation.confidence} confidence
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                </>
+              ) : (
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    fontSize: '0.7rem',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  Wait for your turn to get AI suggestions...
+                </Typography>
+              )}
+            </Box>
+          )}
+        </Paper>
         
         {/* Game Actions */}
         <GameActions

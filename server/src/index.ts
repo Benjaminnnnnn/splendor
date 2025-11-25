@@ -11,6 +11,7 @@ import gameRoutes from './routes/gameRoutes';
 import userRoutes from './routes/userRoutes';
 import lobbyRoutes from './routes/lobbyRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+import aiRoutes from './routes/aiRoutes';
 import { GameSocketHandler } from './sockets/gameSocket';
 import { GameService } from './services/gameService';
 
@@ -92,6 +93,7 @@ app.use('/api/games', gameRoutes(gameService));
 app.use('/api/users', userRoutes());
 app.use('/api/lobbies', lobbyRoutes());
 app.use('/api/notifications', notificationRoutes());
+app.use('/api/ai', aiRoutes(gameService));
 
 // API Documentation endpoint
 app.get('/api-spec', (req, res) => {
