@@ -30,7 +30,7 @@ export interface AIRecommendation {
       gold?: number;
     };
   };
-  confidence: "low" | "medium" | "high";
+  confidenceScore: number; // 0-10, where 10 is highest confidence
 }
 
 export class AIService {
@@ -71,7 +71,7 @@ export class AIService {
           reasoning:
             "It's not your turn yet. Wait for your opponents to complete their moves.",
           details: {},
-          confidence: "high",
+          confidenceScore: 10,
         });
       }
 
@@ -89,7 +89,7 @@ export class AIService {
         action: "wait",
         reasoning: "Unable to get AI recommendation at this time.",
         details: {},
-        confidence: "low",
+        confidenceScore: 0,
       });
     }
   }
@@ -99,57 +99,55 @@ export class AIService {
     currentPlayer: any,
     playerId: string
   ): string {
-    // Calculate bonuses from purchased cards
-    const bonuses = this.calculateBonuses(currentPlayer.cards);
+    // Calculate total tokens
+    const totalTokens = Object.values(currentPlayer.tokens).reduce(
+      (sum: number, count: any) => sum + count,
+      0
+    );
 
-    // Get other players' prestige for context
-    const opponents = game.players
-      .filter((p: any) => p.id !== playerId)
-      .map((p: any) => `${p.name}: ${p.prestige} pts`)
-      .join(", ");
+    // Format reserved cards with full details
+    const reservedCardsDetails = currentPlayer.reservedCards
+      .map((card: any) => this.formatCardDetails(card))
+      .join("\n  ");
 
     return `You are an expert Splendor board game strategist. Analyze the current game state and provide a recommendation in VALID JSON format.
 
 CURRENT PLAYER STATE:
 - Prestige Points: ${currentPlayer.prestige}
-- Tokens: Diamond=${currentPlayer.tokens.diamond}, Sapphire=${
-      currentPlayer.tokens.sapphire
-    }, Emerald=${currentPlayer.tokens.emerald}, Ruby=${
-      currentPlayer.tokens.ruby
-    }, Onyx=${currentPlayer.tokens.onyx}, Gold=${currentPlayer.tokens.gold}
-- Card Bonuses: Diamond=${bonuses.diamond}, Sapphire=${
-      bonuses.sapphire
-    }, Emerald=${bonuses.emerald}, Ruby=${bonuses.ruby}, Onyx=${bonuses.onyx}
-- Reserved Cards: ${currentPlayer.reservedCards.length}
-- Nobles Acquired: ${currentPlayer.nobles.length}
+- Total Tokens: ${totalTokens}/10
+- Tokens: ${JSON.stringify(currentPlayer.tokens)}
+- Card Bonuses: ${JSON.stringify(this.calculateBonuses(currentPlayer.cards))}
+- Purchased Cards: ${currentPlayer.cards.length}
+- Reserved Cards (${currentPlayer.reservedCards.length}/3):
+  ${reservedCardsDetails || "None"}
+- Nobles: ${currentPlayer.nobles.length}
 
 OPPONENTS:
-${opponents}
+${game.players
+  .filter((p: any) => p.id !== playerId)
+  .map(
+    (p: any) =>
+      `- ${p.name}: ${p.prestige} pts, ${
+        p.cards.length
+      } cards, Bonuses: ${JSON.stringify(this.calculateBonuses(p.cards))}`
+  )
+  .join("\n")}
 
 AVAILABLE CARDS ON BOARD:
-Tier 1: ${game.board.availableCards.tier1.length} cards (${this.summarizeCards(
-      game.board.availableCards.tier1
-    )})
-Tier 2: ${game.board.availableCards.tier2.length} cards (${this.summarizeCards(
-      game.board.availableCards.tier2
-    )})
-Tier 3: ${game.board.availableCards.tier3.length} cards (${this.summarizeCards(
-      game.board.availableCards.tier3
-    )})
+Tier 3:
+${this.formatCardsDetailed(game.board.availableCards.tier3)}
+
+Tier 2:
+${this.formatCardsDetailed(game.board.availableCards.tier2)}
+
+Tier 1:
+${this.formatCardsDetailed(game.board.availableCards.tier1)}
 
 NOBLES AVAILABLE:
-${
-  game.board.nobles
-    .map((n: any) => `${n.name} (${n.prestige}pts)`)
-    .join(", ") || "None"
-}
+${this.formatNobles(game.board.nobles)}
 
 TOKEN BANK:
-Diamond=${game.board.tokens.diamond}, Sapphire=${
-      game.board.tokens.sapphire
-    }, Emerald=${game.board.tokens.emerald}, Ruby=${
-      game.board.tokens.ruby
-    }, Onyx=${game.board.tokens.onyx}, Gold=${game.board.tokens.gold}
+${JSON.stringify(game.board.tokens)}
 
 Respond with ONLY a valid JSON object matching this EXACT structure:
 {
@@ -174,7 +172,7 @@ Respond with ONLY a valid JSON object matching this EXACT structure:
       "gold": number
     } | undefined  // ONLY if action is purchase_card or purchase_reserved_card
   },
-  "confidence": "low" | "medium" | "high"
+  "confidenceScore": number  // 0-10, where 10 is highest confidence in this recommendation
 }
 
 Focus on the best strategic move to win. Return ONLY the JSON, no other text.`;
@@ -198,13 +196,31 @@ Focus on the best strategic move to win. Return ONLY the JSON, no other text.`;
     return bonuses;
   }
 
-  private summarizeCards(cards: any[]): string {
-    if (!cards || cards.length === 0) return "none";
+  private formatCardDetails(card: any): string {
+    const cost = Object.entries(card.cost || {})
+      .filter(([_, count]) => (count as number) > 0)
+      .map(([gem, count]) => `${count}${gem}`)
+      .join(" ");
+    return `[${card.id}] ${card.prestige}pts, ${card.gemBonus} bonus, Cost: ${
+      cost || "free"
+    }`;
+  }
 
-    const summary = cards
-      .map((c) => `ID:${c.id} ${c.prestige}pts ${c.gemBonus} bonus`)
-      .slice(0, 3); // Show first 3 cards with IDs
+  private formatCardsDetailed(cards: any[]): string {
+    if (!cards || cards.length === 0) return "  None";
+    return cards.map((c) => `  ${this.formatCardDetails(c)}`).join("\n");
+  }
 
-    return summary.join(", ") + (cards.length > 3 ? "..." : "");
+  private formatNobles(nobles: any[]): string {
+    if (!nobles || nobles.length === 0) return "None";
+    return nobles
+      .map((n: any) => {
+        const req = Object.entries(n.requirements || {})
+          .filter(([_, count]) => (count as number) > 0)
+          .map(([gem, count]) => `${count}${gem}`)
+          .join(" ");
+        return `- ${n.name}: ${n.prestige}pts, Requires: ${req}`;
+      })
+      .join("\n");
   }
 }

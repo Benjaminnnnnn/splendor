@@ -434,14 +434,14 @@ const GameBoard: React.FC<GameBoardProps> = ({
                             {formatTokens(recommendation.details.payment)}
                           </Typography>
                         )}
-                        {recommendation.confidence && (
+                        {recommendation.confidenceScore !== undefined && (
                           <Typography
                             variant="caption"
                             sx={{
                               color:
-                                recommendation.confidence === "high"
+                                recommendation.confidenceScore >= 8
                                   ? "#90EE90"
-                                  : recommendation.confidence === "medium"
+                                  : recommendation.confidenceScore >= 5
                                   ? "#FFD700"
                                   : "#FFA07A",
                               fontSize: "0.6rem",
@@ -451,7 +451,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
                               textTransform: "uppercase",
                             }}
                           >
-                            {recommendation.confidence} confidence
+                            Confidence: {recommendation.confidenceScore}/10
                           </Typography>
                         )}
                       </Box>
