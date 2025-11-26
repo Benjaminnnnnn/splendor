@@ -36,11 +36,13 @@ type ApiUser = {
 };
 
 const TEST_HOST_USER = {
-  email: 'test@gmail.com',
+  email: 'test@example.com',
   password: 'Password123!',
   username: 'Test Host'
 };
 
+// API base URL for E2E test user provisioning. Can be overridden with E2E_API_BASE_URL environment variable.
+// Expected format: http://host:port/api (without trailing slash)
 const API_BASE_URL = process.env.E2E_API_BASE_URL || 'http://localhost:3001/api';
 const VIEWPORT = { width: 1280, height: 720 };
 
@@ -190,7 +192,7 @@ export const test = base.extend<GameFixtures>({
     const hostUser = await provisionHostUser(request);
 
     const options: Required<GameSetupOptions> = {
-      hostName: gameSetupOptions.hostName || hostUser.username || 'HostPlayer',
+      hostName: gameSetupOptions.hostName || (hostUser.username && hostUser.username.trim()) || 'HostPlayer',
       guestName: gameSetupOptions.guestName || 'GuestPlayer',
       lobbyName: gameSetupOptions.lobbyName || `Lobby-${Date.now()}`,
       autoStart: gameSetupOptions.autoStart ?? true
