@@ -56,7 +56,7 @@ export async function setGameState(
   const updatedState = (await response.json()) as GameStateDTO;
 
   if (page) {
-    await page.reload({ waitUntil: 'networkidle' });
+    await page.reload();
     await page.waitForLoadState('networkidle');
   }
 
