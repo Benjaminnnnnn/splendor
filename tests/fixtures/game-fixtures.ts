@@ -36,7 +36,7 @@ async function createPublicGame(page: Page, options: Required<GameSetupOptions>)
   await page.getByTestId('create-game-button').click();
   await expect(page.getByRole('dialog')).toBeVisible();
 
-  const hostNameInput = page.getByLabel(/Guest Name/i);
+  const hostNameInput = page.getByLabel(/Host Name/i);
   if (await hostNameInput.count()) {
     await hostNameInput.fill(options.hostName);
   }
