@@ -24,6 +24,8 @@ import { Game, GameState } from '../../../shared/types/game';
 import { UserStats } from '../../../shared/types/user';
 import { gameService } from '../services/gameService';
 import { userServiceClient } from '../services/userServiceClient';
+import { socketService } from '../services/socketService';
+import { ChatPanel } from '../components/ChatPanel';
 
 const LobbyPage: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
@@ -44,6 +46,25 @@ const LobbyPage: React.FC = () => {
     setCurrentPlayerId(playerId);
   }, []);
 
+  // Initialize socket connection for chat
+  useEffect(() => {
+    if (!currentPlayerId || !game) return;
+
+    // Connect socket
+    socketService.connect();
+
+    // Register for chat
+    const currentPlayerName = game.players.find(p => p.id === currentPlayerId)?.name;
+    if (currentPlayerName) {
+      socketService.registerForChat(currentPlayerId, currentPlayerName);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      // Don't disconnect here as it might be used in other pages
+      // socketService.disconnect();
+    };
+  }, [currentPlayerId, game]);
   // Check if current player is the host
   const isHost = game?.players[0]?.id === currentPlayerId;
 
@@ -269,6 +290,14 @@ const LobbyPage: React.FC = () => {
         px: 2
       }}
     >
+      {/* Chat Panel */}
+      <ChatPanel 
+        gameId={undefined} // No gameId in lobby - will disable group chat
+        currentPlayerId={currentPlayerId || undefined}
+        currentPlayerName={game.players.find(p => p.id === currentPlayerId)?.name || undefined}
+        onlineUsers={game.players.map(p => ({ id: p.id, username: p.name }))}
+      />
+
       <Box sx={{ maxWidth: 800, mx: 'auto', mt: 4 }}>
         <Paper 
           elevation={3} 
