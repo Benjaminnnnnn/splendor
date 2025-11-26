@@ -1,4 +1,4 @@
-import { test as base, expect, BrowserContext, Page } from '@playwright/test';
+import { APIRequestContext, APIResponse, Browser, BrowserContext, Page, expect, test as base } from '@playwright/test';
 import { buildApiUrl } from '../helpers/game-state';
 
 export interface PlayerSession {
@@ -28,7 +28,81 @@ export interface GameFixtures {
   gameSetupOptions: GameSetupOptions;
 }
 
+type ApiUser = {
+  id: string;
+  username: string;
+  email: string;
+  [key: string]: unknown;
+};
+
+const TEST_HOST_USER = {
+  email: 'test@example.com',
+  password: 'Password123!',
+  username: 'Test Host'
+};
+
+// API base URL for E2E test user provisioning. Can be overridden with E2E_API_BASE_URL environment variable.
+// Expected format: http://host:port/api (without trailing slash)
+const API_BASE_URL = process.env.E2E_API_BASE_URL || 'http://localhost:3001/api';
 const VIEWPORT = { width: 1280, height: 720 };
+
+async function safeJson(response: APIResponse) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+async function registerHostUser(request: APIRequestContext): Promise<ApiUser | null> {
+  const response = await request.post(`${API_BASE_URL}/users/register`, {
+    data: { ...TEST_HOST_USER }
+  });
+  const body = await safeJson(response);
+
+  if (response.ok()) {
+    return body;
+  }
+
+  const alreadyExists = response.status() === 400 && body?.error?.includes('exists');
+  if (alreadyExists) {
+    return null;
+  }
+
+  throw new Error(`Failed to register host test user (${response.status()}): ${body?.error || 'Unknown error'}`);
+}
+
+async function loginHostUser(request: APIRequestContext): Promise<ApiUser> {
+  const response = await request.post(`${API_BASE_URL}/users/login`, {
+    data: { email: TEST_HOST_USER.email, password: TEST_HOST_USER.password }
+  });
+  const body = await safeJson(response);
+
+  if (!response.ok()) {
+    throw new Error(`Failed to log in host test user (${response.status()}): ${body?.error || 'Unknown error'}`);
+  }
+
+  return body;
+}
+
+async function provisionHostUser(request: APIRequestContext): Promise<ApiUser> {
+  const registeredUser = await registerHostUser(request);
+  if (registeredUser) return registeredUser;
+  return loginHostUser(request);
+}
+
+async function createAuthedContext(browser: Browser, user: ApiUser) {
+  const context = await browser.newContext({ viewport: VIEWPORT });
+  await context.addInitScript((storedUser) => {
+    window.localStorage.setItem('splendor_user', JSON.stringify(storedUser));
+  }, user);
+  return context;
+}
+
+async function createGuestContext(browser: Browser) {
+  return browser.newContext({ viewport: VIEWPORT });
+}
+
 async function createPublicGame(page: Page, options: Required<GameSetupOptions>) {
   await page.goto('/');
   await page.waitForLoadState('networkidle');
@@ -114,16 +188,18 @@ function extractGameId(url: string) {
 export const test = base.extend<GameFixtures>({
   gameSetupOptions: [{ hostName: 'HostPlayer', guestName: 'GuestPlayer', lobbyName: 'QA Lobby', autoStart: true }, { option: true }],
 
-  gameSetup: async ({ browser, gameSetupOptions }, use) => {
+  gameSetup: async ({ browser, request, gameSetupOptions }, use) => {
+    const hostUser = await provisionHostUser(request);
+
     const options: Required<GameSetupOptions> = {
-      hostName: gameSetupOptions.hostName || 'HostPlayer',
+      hostName: gameSetupOptions.hostName || (hostUser.username && hostUser.username.trim()) || 'HostPlayer',
       guestName: gameSetupOptions.guestName || 'GuestPlayer',
       lobbyName: gameSetupOptions.lobbyName || `Lobby-${Date.now()}`,
       autoStart: gameSetupOptions.autoStart ?? true
     };
 
-    const hostContext = await browser.newContext({ viewport: VIEWPORT });
-    const guestContext = await browser.newContext({ viewport: VIEWPORT });
+    const hostContext = await createAuthedContext(browser, hostUser);
+    const guestContext = await createGuestContext(browser);
     const hostPage = await hostContext.newPage();
     const guestPage = await guestContext.newPage();
 
