@@ -161,8 +161,9 @@ describe("AIService Integration Tests", () => {
     it("should return a valid AI recommendation from OpenAI", async () => {
       // This test requires OPENAI_API_KEY to be set
       if (!process.env.OPENAI_API_KEY) {
-        console.log("Skipping integration test: OPENAI_API_KEY not set");
-        return;
+        throw new Error(
+          "OPENAI_API_KEY environment variable must be set to run integration tests"
+        );
       }
 
       const result = await aiService.getGameRecommendation(
@@ -225,8 +226,9 @@ describe("AIService Integration Tests", () => {
 
     it("should provide strategic reasoning based on game state", async () => {
       if (!process.env.OPENAI_API_KEY) {
-        console.log("Skipping integration test: OPENAI_API_KEY not set");
-        return;
+        throw new Error(
+          "OPENAI_API_KEY environment variable must be set to run integration tests"
+        );
       }
 
       // Game state where player has tokens to buy a card
@@ -263,8 +265,9 @@ describe("AIService Integration Tests", () => {
 
     it("should handle player with many reserved cards", async () => {
       if (!process.env.OPENAI_API_KEY) {
-        console.log("Skipping integration test: OPENAI_API_KEY not set");
-        return;
+        throw new Error(
+          "OPENAI_API_KEY environment variable must be set to run integration tests"
+        );
       }
 
       const gameWithReservedCards = createMockGame();
@@ -305,8 +308,9 @@ describe("AIService Integration Tests", () => {
 
     it("should consider opponent positions", async () => {
       if (!process.env.OPENAI_API_KEY) {
-        console.log("Skipping integration test: OPENAI_API_KEY not set");
-        return;
+        throw new Error(
+          "OPENAI_API_KEY environment variable must be set to run integration tests"
+        );
       }
 
       const gameWithStrongOpponent = createMockGame();
@@ -357,8 +361,9 @@ describe("AIService Integration Tests", () => {
 
     it("should recommend valid token combinations", async () => {
       if (!process.env.OPENAI_API_KEY) {
-        console.log("Skipping integration test: OPENAI_API_KEY not set");
-        return;
+        throw new Error(
+          "OPENAI_API_KEY environment variable must be set to run integration tests"
+        );
       }
 
       const gameWithNoAffordableCards = createMockGame();
@@ -416,8 +421,9 @@ describe("AIService Integration Tests", () => {
 
     it("should return valid JSON even under unusual game states", async () => {
       if (!process.env.OPENAI_API_KEY) {
-        console.log("Skipping integration test: OPENAI_API_KEY not set");
-        return;
+        throw new Error(
+          "OPENAI_API_KEY environment variable must be set to run integration tests"
+        );
       }
 
       const edgeCaseGame = createMockGame();
