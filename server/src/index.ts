@@ -12,6 +12,7 @@ import userRoutes from './routes/userRoutes';
 import lobbyRoutes from './routes/lobbyRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import aiRoutes from './routes/aiRoutes';
+import bettingRoutes from './routes/bettingRoutes';
 import { GameSocketHandler } from './sockets/gameSocket';
 import { GameService } from './services/gameService';
 
@@ -94,6 +95,7 @@ app.use('/api/users', userRoutes());
 app.use('/api/lobbies', lobbyRoutes());
 app.use('/api/notifications', notificationRoutes());
 app.use('/api/ai', aiRoutes(gameService));
+app.use('/api/bets', bettingRoutes);
 
 // API Documentation endpoint
 app.get('/api-spec', (req, res) => {
