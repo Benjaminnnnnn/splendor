@@ -17,6 +17,7 @@ import { aiService } from '../services/aiService';
 import { socketService } from '../services/socketService';
 import GameBoard from '../components/GameBoard';
 import PlayerArea from '../components/PlayerArea';
+import { ChatPanel } from '../components/ChatPanel';
 import { colors, borderRadius } from '../theme';
 
 const GamePage: React.FC = () => {
@@ -226,6 +227,16 @@ const GamePage: React.FC = () => {
         }
       }}
     >
+
+            {/* Chat Panel */}
+      <ChatPanel 
+        gameId={gameId}
+        currentPlayerId={currentPlayer || undefined}
+        currentPlayerName={game.players.find(p => p.id === currentPlayer)?.name || undefined}
+        onlineUsers={game.players.map(p => ({ id: p.id, username: p.name }))}
+      />
+
+
       {/* Main Game Area */}
       <Box sx={{ minWidth: 0 }}>
         <GameBoard
