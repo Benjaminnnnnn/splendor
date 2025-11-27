@@ -161,8 +161,8 @@ Respond with ONLY a valid JSON object matching this EXACT structure:
       "ruby": number,
       "onyx": number,
       "gold": number
-    } | undefined,  // ONLY if action is take_tokens
-    "cardId": string | undefined,  // REQUIRED for purchase_card, reserve_card, or purchase_reserved_card
+    },  // ONLY include if action is take_tokens, otherwise OMIT this field
+    "cardId": string,  // ONLY include for purchase_card, reserve_card, or purchase_reserved_card, otherwise OMIT
     "payment": {
       "diamond": number,
       "sapphire": number,
@@ -170,10 +170,13 @@ Respond with ONLY a valid JSON object matching this EXACT structure:
       "ruby": number,
       "onyx": number,
       "gold": number
-    } | undefined  // ONLY if action is purchase_card or purchase_reserved_card
+    }  // ONLY include for purchase_card or purchase_reserved_card, otherwise OMIT
   },
   "confidenceScore": number  // 0-10, where 10 is highest confidence in this recommendation
 }
+
+IMPORTANT: Do NOT include fields set to "undefined" or "null". Simply OMIT fields that don't apply to the action.
+For example, if action is "take_tokens", ONLY include the "tokens" field in details.
 
 Focus on the best strategic move to win. Return ONLY the JSON, no other text.`;
   }
