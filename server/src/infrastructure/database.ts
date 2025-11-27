@@ -43,7 +43,7 @@ export class DatabaseConnection {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS user_stats (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
+        user_id TEXT NOT NULL UNIQUE,
         games_played INTEGER DEFAULT 0,
         games_won INTEGER DEFAULT 0,
         total_prestige_points INTEGER DEFAULT 0,
@@ -52,9 +52,9 @@ export class DatabaseConnection {
         fastest_win_time INTEGER,
         highest_prestige_score INTEGER DEFAULT 0,
         favorite_gem_type TEXT,
+        virtual_currency INTEGER DEFAULT 1000,
         created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        updated_at INTEGER NOT NULL
       )
     `);
 
@@ -140,6 +140,30 @@ export class DatabaseConnection {
         FOREIGN KEY (game_history_id) REFERENCES game_history(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
+    `);
+
+    // Bets table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS bets (
+        id TEXT PRIMARY KEY,
+        game_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        odds REAL NOT NULL DEFAULT 1.0,
+        status TEXT NOT NULL DEFAULT 'pending',
+        payout INTEGER,
+        created_at INTEGER NOT NULL,
+        settled_at INTEGER
+      )
+    `);
+
+    // Create index for faster bet queries
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_bets_game_id ON bets(game_id)
+    `);
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_bets_user_id ON bets(user_id)
     `);
   }
 
