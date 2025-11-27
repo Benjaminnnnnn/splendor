@@ -82,7 +82,14 @@ export class AIService {
       const openAI = this.getOpenAIProvider();
       const recommendation = await openAI.sendMessage(prompt);
 
-      return recommendation;
+      // Validate and potentially fix the recommendation
+      const validatedRecommendation = this.validateRecommendation(
+        JSON.parse(recommendation),
+        game,
+        currentPlayer
+      );
+
+      return JSON.stringify(validatedRecommendation);
     } catch (error) {
       console.error("Error getting AI recommendation:", error);
       return JSON.stringify({
@@ -92,6 +99,88 @@ export class AIService {
         confidenceScore: 0,
       });
     }
+  }
+
+  private validateRecommendation(
+    recommendation: any,
+    game: any,
+    currentPlayer: any
+  ): any {
+    const totalTokens = Object.values(currentPlayer.tokens).reduce(
+      (sum: number, count: any) => sum + count,
+      0
+    );
+
+    // Rule 1: Cannot take tokens if already at 10 tokens
+    if (recommendation.action === "take_tokens" && totalTokens >= 10) {
+      console.warn(
+        "AI recommended taking tokens but player already has 10 tokens. Overriding to purchase/reserve."
+      );
+      return {
+        action: "wait",
+        reasoning:
+          "You already have the maximum 10 tokens. Consider purchasing a card or reserving one instead.",
+        details: {},
+        confidenceScore: 5,
+      };
+    }
+
+    // Rule 2: Cannot take tokens that would exceed 10 token limit
+    if (
+      recommendation.action === "take_tokens" &&
+      recommendation.details.tokens
+    ) {
+      const newTokens = Object.values(recommendation.details.tokens).reduce(
+        (sum: number, count: any) => sum + count,
+        0
+      );
+
+      // Rule 2a: Cannot take more than 3 tokens per turn
+      if (newTokens > 3) {
+        console.warn(
+          `AI recommended taking ${newTokens} tokens but can only take max 3 per turn. Overriding.`
+        );
+        return {
+          action: "wait",
+          reasoning: `Cannot take ${newTokens} tokens in one turn. You can take up to 3 tokens: either 3 different colors or 2 of the same color.`,
+          details: {},
+          confidenceScore: 5,
+        };
+      }
+
+      // Rule 2b: Cannot take tokens that would exceed 10 total
+      if (totalTokens + newTokens > 10) {
+        console.warn(
+          `AI recommended taking ${newTokens} tokens but would exceed 10 token limit (current: ${totalTokens}). Adjusting.`
+        );
+        return {
+          action: "wait",
+          reasoning: `Taking ${newTokens} tokens would exceed the 10 token limit. Consider purchasing a card instead.`,
+          details: {},
+          confidenceScore: 5,
+        };
+      }
+    }
+
+    // Rule 3: Cannot reserve if already have 3 reserved cards
+    if (
+      recommendation.action === "reserve_card" &&
+      currentPlayer.reservedCards.length >= 3
+    ) {
+      console.warn(
+        "AI recommended reserving but player already has 3 reserved cards. Overriding."
+      );
+      return {
+        action: "wait",
+        reasoning:
+          "You already have the maximum 3 reserved cards. Purchase one of your reserved cards or take tokens.",
+        details: {},
+        confidenceScore: 5,
+      };
+    }
+
+    // If all validations pass, return original recommendation
+    return recommendation;
   }
 
   private buildGameStatePrompt(
@@ -125,10 +214,15 @@ CURRENT PLAYER STATE:
 - Nobles: ${currentPlayer.nobles.length}
 
 GAME RULES - CRITICAL CONSTRAINTS:
-1. Players can hold a MAXIMUM of 10 tokens. DO NOT recommend taking tokens if player already has 10 tokens.
-2. When taking tokens, ensure the total (current + new tokens) does NOT exceed 10.
-3. Players can reserve a MAXIMUM of 3 cards. DO NOT recommend reserving if player already has 3 reserved cards.
-4. To win, a player needs 15 prestige points.
+1. TOKEN TAKING: Players can take UP TO 3 TOKENS PER TURN in these valid patterns:
+   - Take 3 tokens of DIFFERENT colors (1 of each)
+   - Take 2 tokens of the SAME color
+   - DO NOT take more than 3 tokens total
+   - The bank has enough remaining token reserve for the requested tokens
+2. TOKEN LIMIT: Players can hold a MAXIMUM of 10 tokens. DO NOT recommend taking tokens if player already has 10 tokens.
+3. When taking tokens, ensure the total (current + new tokens) does NOT exceed 10.
+4. RESERVE LIMIT: Players can reserve a MAXIMUM of 3 cards. DO NOT recommend reserving if player already has 3 reserved cards.
+5. WINNING: To win, a player needs 15 prestige points.
 
 OPPONENTS:
 ${game.players
