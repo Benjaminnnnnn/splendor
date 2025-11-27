@@ -51,19 +51,24 @@ const GameBoard: React.FC<GameBoardProps> = ({
   const parseRecommendation = (rec: string | undefined) => {
     if (!rec) return null;
     try {
-      // Strip markdown code blocks if present
+      // Strip markdown code blocks and any extra formatting
       let cleanedRec = rec.trim();
-      if (cleanedRec.startsWith("```json")) {
-        cleanedRec = cleanedRec
-          .replace(/```json\n?/g, "")
-          .replace(/```\n?/g, "");
-      } else if (cleanedRec.startsWith("```")) {
-        cleanedRec = cleanedRec.replace(/```\n?/g, "");
-      }
-      return JSON.parse(cleanedRec.trim());
+      // Remove markdown code blocks (```json or ```)
+      cleanedRec = cleanedRec
+        .replace(/^```(?:json)?\s*/g, "")
+        .replace(/\s*```$/g, "");
+      const parsed = JSON.parse(cleanedRec.trim());
+      console.log("Successfully parsed AI recommendation:", parsed);
+      return parsed;
     } catch (e) {
-      console.error("Failed to parse AI recommendation:", e);
-      return { reasoning: rec }; // Fallback to plain text
+      console.error("Failed to parse AI recommendation:", e, "Original:", rec);
+      // If JSON parsing fails, try to display error message
+      return {
+        action: "wait",
+        reasoning: "Unable to parse AI recommendation. Please try again.",
+        details: {},
+        confidenceScore: 0,
+      };
     }
   };
 
@@ -405,8 +410,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
                               display: "block",
                             }}
                           >
-                            Tokens:{" "}
-                            {formatTokens(recommendation.details.tokens)}
+                            Take: {formatTokens(recommendation.details.tokens)}
                           </Typography>
                         )}
                         {recommendation.details.cardId && (
@@ -418,7 +422,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
                               display: "block",
                             }}
                           >
-                            Card: {recommendation.details.cardId}
+                            Target Card: {recommendation.details.cardId}
                           </Typography>
                         )}
                         {recommendation.details.payment && (
@@ -430,8 +434,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
                               display: "block",
                             }}
                           >
-                            Payment:{" "}
-                            {formatTokens(recommendation.details.payment)}
+                            Pay: {formatTokens(recommendation.details.payment)}
                           </Typography>
                         )}
                         {recommendation.confidenceScore !== undefined && (
