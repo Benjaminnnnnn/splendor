@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { fc } from "fast-check";
 import { AIService } from "../server/src/services/aiService";
 import { GameService } from "../server/src/services/gameService";
 import { GameState } from "../shared/types/game";

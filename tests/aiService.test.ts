@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { AIService } from "../server/src/services/aiService";
 import { GameService } from "../server/src/services/gameService";
-import { OpenAIProvider } from "../server/src/infrastructure/openAIProvider";
 import { GameState } from "../shared/types/game";
 
 // Mock the OpenAI provider
