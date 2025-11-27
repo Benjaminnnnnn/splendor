@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Server, Socket } from 'socket.io';
 import { GameService } from '../services/gameService';
+import { BettingService } from '../services/bettingService';
 
 // Create a simple file logger for socket events
 const logsDir = path.join(__dirname, '../../logs');
@@ -19,10 +20,12 @@ function logToFile(message: string) {
 export class GameSocketHandler {
   private io: Server;
   private gameService: GameService;
+  private bettingService: BettingService;
 
   constructor(io: Server, gameService: GameService) {
     this.io = io;
     this.gameService = gameService;
+    this.bettingService = new BettingService();
   }
 
   initialize() {
@@ -112,6 +115,49 @@ export class GameSocketHandler {
           console.error('Error processing game action:', actionError);
           logToFile(`Error processing game action ${action || 'unknown'} for player ${payload?.playerId || 'unknown'} in game ${gameId || 'unknown'}: ${(actionError as Error).message}`);
           socket.emit('error', { message: (actionError as Error).message });
+        }
+      });
+
+      socket.on('place-bet', async (data) => {
+        try {
+          const { userId, gameId, playerId, amount } = data;
+          
+          if (!userId || !gameId || !playerId || !amount) {
+            throw new Error('Missing required bet data');
+          }
+
+          logToFile(`Bet placed: User ${userId} betting ${amount} on player ${playerId} in game ${gameId}`);
+
+          const result = await this.bettingService.placeBet(userId, { gameId, playerId, amount });
+          
+          // Emit bet confirmation to the user
+          socket.emit('bet-placed', result);
+          
+          // Broadcast updated betting stats to all users in the game room
+          const stats = await this.bettingService.getGameBettingStats(gameId);
+          this.io.to(gameId).emit('betting-stats-updated', stats);
+          
+          logToFile(`Bet placed successfully: ${result.bet.id}`);
+        } catch (error) {
+          console.error('Error placing bet:', error);
+          logToFile(`Error placing bet: ${(error as Error).message}`);
+          socket.emit('bet-error', { message: (error as Error).message });
+        }
+      });
+
+      socket.on('get-betting-stats', async (data) => {
+        try {
+          const { gameId } = data;
+          
+          if (!gameId) {
+            throw new Error('Missing gameId');
+          }
+
+          const stats = await this.bettingService.getGameBettingStats(gameId);
+          socket.emit('betting-stats', stats);
+        } catch (error) {
+          console.error('Error getting betting stats:', error);
+          socket.emit('error', { message: (error as Error).message });
         }
       });
 
