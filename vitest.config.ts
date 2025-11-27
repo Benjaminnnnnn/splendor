@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { configDefaults } from "vitest/config";
 import dotenv from "dotenv";
 import path from "path";
 
@@ -11,6 +12,7 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["tests/**/*.test.ts", "tests/**/*.spec.ts"],
+    passWithNoTests: true,
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -22,6 +24,9 @@ export default defineConfig({
         "**/node_modules/**",
         "**/dist/**",
         "**/coverage/**",
+        ...configDefaults.exclude,
+        "tests/**/*.e2e.{ts,tsx}",
+        "playwright.config.ts",
       ],
     },
   },
