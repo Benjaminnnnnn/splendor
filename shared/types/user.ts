@@ -17,6 +17,7 @@ export interface UserStats {
   fastest_win_time?: number;
   highest_prestige_score: number;
   favorite_gem_type?: string;
+  virtual_currency: number;
   created_at: Date;
   updated_at: Date;
 }
