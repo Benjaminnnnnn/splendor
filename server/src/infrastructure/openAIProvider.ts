@@ -24,6 +24,21 @@ export class OpenAIProvider {
       messages: [{ role: "user", content: input }],
     });
 
-    return response.choices[0].message.content || "";
+    const content = response.choices[0].message.content || "";
+
+    // Strip markdown code blocks if present
+    let cleanedContent = content.trim();
+    cleanedContent = cleanedContent
+      .replace(/^```(?:json)?\s*/g, "")
+      .replace(/\s*```$/g, "");
+
+    // Validate it's valid JSON and return
+    try {
+      JSON.parse(cleanedContent);
+      return cleanedContent;
+    } catch (e) {
+      console.error("OpenAI returned invalid JSON:", content);
+      throw new Error("Invalid JSON response from OpenAI");
+    }
   }
 }
