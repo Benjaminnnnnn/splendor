@@ -114,13 +114,21 @@ export class AIService {
 
 CURRENT PLAYER STATE:
 - Prestige Points: ${currentPlayer.prestige}
-- Total Tokens: ${totalTokens}/10
+- Total Tokens: ${totalTokens}/10 (MAX 10 TOKENS ALLOWED)
 - Tokens: ${JSON.stringify(currentPlayer.tokens)}
 - Card Bonuses: ${JSON.stringify(this.calculateBonuses(currentPlayer.cards))}
 - Purchased Cards: ${currentPlayer.cards.length}
-- Reserved Cards (${currentPlayer.reservedCards.length}/3):
+- Reserved Cards (${
+      currentPlayer.reservedCards.length
+    }/3 - MAX 3 RESERVED CARDS):
   ${reservedCardsDetails || "None"}
 - Nobles: ${currentPlayer.nobles.length}
+
+GAME RULES - CRITICAL CONSTRAINTS:
+1. Players can hold a MAXIMUM of 10 tokens. DO NOT recommend taking tokens if player already has 10 tokens.
+2. When taking tokens, ensure the total (current + new tokens) does NOT exceed 10.
+3. Players can reserve a MAXIMUM of 3 cards. DO NOT recommend reserving if player already has 3 reserved cards.
+4. To win, a player needs 15 prestige points.
 
 OPPONENTS:
 ${game.players
