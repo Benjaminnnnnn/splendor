@@ -1,20 +1,20 @@
 import Database from 'better-sqlite3';
-import path from 'path';
 import fs from 'fs';
+import path from 'path';
 
 export class DatabaseConnection {
   private db: Database.Database;
   private static instance: DatabaseConnection | null = null;
 
-  private constructor() {
-    const dbPath = path.join(__dirname, '../../data/splendor.db');
-    const dbDir = path.dirname(dbPath);
-    
+  private constructor(dbPath?: string) {
+    const resolvedPath = dbPath ?? process.env.DATABASE_PATH ?? path.join(__dirname, '../../data/splendor.db');
+    const dbDir = path.dirname(resolvedPath);
+
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });
     }
-    
-    this.db = new Database(dbPath);
+
+    this.db = new Database(resolvedPath);
     this.db.pragma('foreign_keys = ON');
     this.initializeTables();
   }
@@ -24,6 +24,14 @@ export class DatabaseConnection {
       DatabaseConnection.instance = new DatabaseConnection();
     }
     return DatabaseConnection.instance;
+  }
+
+  /**
+   * Creates a database connection at the provided path (useful for tests).
+   * Does not affect the global singleton.
+   */
+  public static createAtPath(dbPath: string): DatabaseConnection {
+    return new DatabaseConnection(dbPath);
   }
 
   private initializeTables(): void {
@@ -140,6 +148,64 @@ export class DatabaseConnection {
         FOREIGN KEY (game_history_id) REFERENCES game_history(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
+    `);
+
+    // Achievement catalog
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS achievements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        category TEXT NOT NULL,
+        icon TEXT,
+        sort_order INTEGER DEFAULT 0,
+        unlock_type TEXT NOT NULL CHECK (unlock_type IN ('threshold', 'ratio', 'composite')),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `);
+
+    // Achievement criteria (supports multi-condition or ratio-based unlocks)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS achievement_criteria (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        achievement_id INTEGER NOT NULL,
+        stat_key TEXT NOT NULL,
+        comparator TEXT NOT NULL CHECK (comparator IN ('>=', '<=', '>', '<', '=')),
+        target_value REAL NOT NULL,
+        denominator_stat_key TEXT,
+        min_sample_size INTEGER,
+        notes TEXT,
+        FOREIGN KEY (achievement_id) REFERENCES achievements(id) ON DELETE CASCADE
+      )
+    `);
+
+    // User achievement state
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS user_achievements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        achievement_id INTEGER NOT NULL,
+        unlocked_at INTEGER NOT NULL,
+        progress_value REAL,
+        progress_detail TEXT,
+        notified_at INTEGER,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (achievement_id) REFERENCES achievements(id) ON DELETE CASCADE,
+        UNIQUE(user_id, achievement_id)
+      )
+    `);
+
+    // Indexes to speed lookups
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_achievement_code ON achievements(code);
+    `);
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements(user_id);
+    `);
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_user_achievements_achievement ON user_achievements(achievement_id);
     `);
   }
 

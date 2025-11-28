@@ -66,31 +66,31 @@ const animations = {
   }
 };
 
-// Renaissance-inspired color palette
+// Futuristic neon-inspired palette (indigo + cyan on deep navy)
 const colors = {
   primary: {
-    main: '#8B4513', // Saddle Brown - rich, warm earth tone
-    light: '#A0522D',
-    dark: '#654321',
+    main: '#4F46E5', // Indigo
+    light: '#6366F1',
+    dark: '#312E81',
     contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#DAA520', // Goldenrod - Renaissance gold
-    light: '#FFD700',
-    dark: '#B8860B',
-    contrastText: '#000000'
+    main: '#22D3EE', // Bright cyan
+    light: '#67E8F9',
+    dark: '#0891B2',
+    contrastText: '#0B1021'
   },
   background: {
-    default: '#FFF8DC', // Cornsilk - warm parchment color
-    paper: '#FFFEF7', // Slightly warmer white
-    card: '#F5F5DC', // Beige for cards
-    parchment: '#F4F1E8' // Parchment for placeholders
+    default: '#0B1021', // Deep navy
+    paper: '#111827', // Dark slate
+    card: '#161D2F', // Slightly lighter slate for cards
+    parchment: '#111827' // Keep placeholders aligned with dark surfaces
   },
   text: {
-    primary: '#2C1810', // Dark brown for primary text
-    secondary: '#5D4E37' // Medium brown for secondary text
+    primary: '#E5E7EB', // Light gray
+    secondary: '#9CA3AF' // Muted gray
   },
-  divider: '#E8D5B7' // Light tan for dividers
+  divider: '#1F2937' // Slate divider
 };
 
 export const theme = createTheme({
@@ -154,7 +154,7 @@ export const theme = createTheme({
     }
   },
   palette: {
-    mode: 'light',
+    mode: 'dark',
     primary: colors.primary,
     secondary: colors.secondary,
     background: colors.background,
@@ -249,4 +249,5 @@ export const theme = createTheme({
 });
 
 // Export all design system objects for use in components
-export { spacing, borderRadius, colors, sizes, gemSystem, animations };
+export { animations, borderRadius, colors, gemSystem, sizes, spacing };
+
