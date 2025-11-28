@@ -6,7 +6,7 @@ export default defineConfig({
     passWithNoTests: true,
     exclude: [
       ...configDefaults.exclude,
-      'tests/**/*.e2e.{ts,tsx}',
+      'tests/**/*.e2e.test.{ts,tsx}',
       'playwright.config.ts'
     ]
   }
