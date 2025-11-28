@@ -92,12 +92,12 @@ export class AIService {
 
       // Build a concise game state summary for the AI
       const prompt = this.buildGameStatePrompt(game, currentPlayer, playerId);
-      console.log("AI Prompt:", prompt);
+      // console.log("AI Prompt:", prompt);
 
       // Get recommendation from OpenAI
       const openAI = this.getOpenAIProvider();
       const recommendation = await openAI.sendMessage(prompt);
-      console.log("AI Recommendation:", recommendation);
+      // console.log("AI Recommendation:", recommendation);
 
       // Validate and potentially fix the recommendation
       const validatedRecommendation = this.validateRecommendation(
