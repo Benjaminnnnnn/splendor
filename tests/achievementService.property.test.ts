@@ -184,4 +184,195 @@ describe('Achievement Service property tests', () => {
       { numRuns: 50 }
     );
   });
+
+  it("keeps ratio unlock decision invariant when scaling numerator and denominator by the same factor", async () => {
+    const ratioAchievement = makeRatioAchievement(10, 'win_rate_invariant', 'games_won', 'games_played', 0.6, 5);
+
+    const ratioStatsArb = fc
+      .record({
+        games_played: fc.integer({ min: 5, max: 120 }),
+        games_won: fc.integer({ min: 0, max: 120 }),
+        scale: fc.integer({ min: 1, max: 10 }),
+      })
+      .filter(({ games_played, games_won }) => games_won <= games_played)
+      .map(({ games_played, games_won, scale }) => ({
+        base: buildUserStats({
+          user_id: userId,
+          games_played,
+          games_won,
+          total_prestige_points: 0,
+          total_cards_purchased: 0,
+          total_nobles_acquired: 0,
+        }),
+        scaled: buildUserStats({
+          user_id: userId,
+          games_played: games_played * scale,
+          games_won: games_won * scale,
+          total_prestige_points: 0,
+          total_cards_purchased: 0,
+          total_nobles_acquired: 0,
+        }),
+      }));
+
+    const evalUnlock = async (stats: ReturnType<typeof buildUserStats>) => {
+      const repo = new FakeAchievementRepository();
+      repo.achievements = [ratioAchievement];
+      repo.setUserStats(userId, stats);
+      const service = new AchievementService(repo);
+      const result = await service.evaluateUserAchievements(userId);
+      return result.newlyUnlocked.some((a) => a.code === ratioAchievement.code);
+    };
+
+    await fc.assert(
+      fc.asyncProperty(ratioStatsArb, async ({ base, scaled }) => {
+        const baseUnlock = await evalUnlock(base);
+        const scaledUnlock = await evalUnlock(scaled);
+
+        expect(baseUnlock).toBe(scaledUnlock);
+      }),
+      { numRuns: 50 }
+    );
+  });
+
+  it('does not depend on composite criteria order for unlock decisions', async () => {
+    const thresholdTarget = 20;
+    const ratioTarget = 0.5;
+    const minSample = 10;
+
+    const criteriaInOrder = [
+      {
+        achievement_id: 201,
+        stat_key: 'games_played',
+        comparator: '>=',
+        target_value: thresholdTarget,
+        denominator_stat_key: null,
+        min_sample_size: null,
+      },
+      {
+        achievement_id: 201,
+        stat_key: 'games_won',
+        comparator: '>=',
+        target_value: ratioTarget,
+        denominator_stat_key: 'games_played',
+        min_sample_size: minSample,
+      },
+    ];
+
+    const criteriaReversed = [...criteriaInOrder].reverse().map((crit) => ({ ...crit, achievement_id: 202 }));
+
+    const statsArb = fc.record({
+      games_played: fc.integer({ min: thresholdTarget, max: 200 }),
+      winSurplus: fc.integer({ min: 0, max: 50 }),
+    }).map(({ games_played, winSurplus }) => {
+      const minimumWins = Math.ceil(games_played * ratioTarget);
+      const games_won = Math.min(games_played, minimumWins + winSurplus);
+      return buildUserStats({
+        user_id: userId,
+        games_played,
+        games_won,
+      });
+    });
+
+    const evalComposite = async (achievementId: number, criteria: typeof criteriaInOrder, stats: ReturnType<typeof buildUserStats>) => {
+      const repo = new FakeAchievementRepository();
+      repo.achievements = [
+        {
+          id: achievementId,
+          code: `composite_${achievementId}`,
+          name: `composite_${achievementId}`,
+          description: 'composite test',
+          category: 'composite',
+          icon: null,
+          unlock_type: 'composite',
+          sort_order: achievementId,
+          criteria,
+        },
+      ];
+      repo.setUserStats(userId, stats);
+      const service = new AchievementService(repo);
+      const result = await service.evaluateUserAchievements(userId);
+      return result.newlyUnlocked.some((a) => a.code === `composite_${achievementId}`);
+    };
+
+    await fc.assert(
+      fc.asyncProperty(statsArb, async (stats) => {
+        const orderedUnlock = await evalComposite(201, criteriaInOrder, stats);
+        const reversedUnlock = await evalComposite(202, criteriaReversed, stats);
+
+        expect(orderedUnlock).toBe(reversedUnlock);
+      }),
+      { numRuns: 50 }
+    );
+  });
+
+  it('never unlocks composite achievements when only a subset of criteria are satisfied', async () => {
+    const thresholdTarget = 25;
+    const ratioTarget = 0.6;
+    const minSample = 5;
+
+    const compositeAchievement = {
+      id: 300,
+      code: 'subset_guard',
+      name: 'subset_guard',
+      description: 'composite subset guard',
+      category: 'composite',
+      icon: null,
+      unlock_type: 'composite',
+      sort_order: 300,
+      criteria: [
+        {
+          achievement_id: 300,
+          stat_key: 'games_played',
+          comparator: '>=',
+          target_value: thresholdTarget,
+          denominator_stat_key: null,
+          min_sample_size: null,
+        },
+        {
+          achievement_id: 300,
+          stat_key: 'games_won',
+          comparator: '>=',
+          target_value: ratioTarget,
+          denominator_stat_key: 'games_played',
+          min_sample_size: minSample,
+        },
+      ],
+    };
+
+    const partialStatsArb = fc.oneof(
+      // Meets ratio but not threshold
+      fc.integer({ min: minSample, max: thresholdTarget - 1 }).map((games_played) =>
+        buildUserStats({
+          user_id: userId,
+          games_played,
+          games_won: games_played, // ratio passes
+        })
+      ),
+      // Meets threshold but not ratio
+      fc.record({
+        games_played: fc.integer({ min: thresholdTarget, max: 200 }),
+        shortfall: fc.integer({ min: 1, max: 5 }),
+      }).map(({ games_played, shortfall }) => {
+        const winsBelowTarget = Math.max(0, Math.floor(games_played * ratioTarget) - shortfall);
+        return buildUserStats({
+          user_id: userId,
+          games_played,
+          games_won: winsBelowTarget,
+        });
+      })
+    );
+
+    await fc.assert(
+      fc.asyncProperty(partialStatsArb, async (stats) => {
+        const repo = new FakeAchievementRepository();
+        repo.achievements = [compositeAchievement];
+        repo.setUserStats(userId, stats);
+        const service = new AchievementService(repo);
+
+        const result = await service.evaluateUserAchievements(userId);
+        expect(result.newlyUnlocked.length).toBe(0);
+      }),
+      { numRuns: 50 }
+    );
+  });
 });
