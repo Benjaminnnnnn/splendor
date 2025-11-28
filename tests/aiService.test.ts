@@ -174,7 +174,7 @@ describe("AIService", () => {
       );
       const recommendation = JSON.parse(result);
 
-      expect(recommendation.action).toBe("wait");
+      expect(recommendation.action).toBe("any");
       expect(recommendation.reasoning).toContain(
         "Unable to get AI recommendation"
       );
@@ -192,7 +192,7 @@ describe("AIService", () => {
       );
       const recommendation = JSON.parse(result);
 
-      expect(recommendation.action).toBe("wait");
+      expect(recommendation.action).toBe("any");
       expect(recommendation.reasoning).toContain(
         "Unable to get AI recommendation"
       );

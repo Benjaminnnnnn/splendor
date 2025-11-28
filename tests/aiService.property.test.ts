@@ -250,7 +250,111 @@ describe("AIService Property-Based Tests", () => {
     }, 30000);
   });
 
-  describe("Property 2: AI should not suggest exceeding 10 token limit", () => {
+  describe("Property 2: AI should respect token bank availability", () => {
+    it("should never recommend taking tokens from depleted colors in bank", async () => {
+      const game = createGameState(
+        { diamond: 1, sapphire: 1, emerald: 1, ruby: 0, onyx: 0, gold: 0 },
+        [],
+        [],
+        [
+          {
+            id: "card-1",
+            tier: 1,
+            prestige: 0,
+            gemBonus: "diamond",
+            cost: { diamond: 3 },
+          },
+        ],
+        { diamond: 0, sapphire: 0, emerald: 5, ruby: 5, onyx: 5, gold: 5 } // diamond and sapphire depleted
+      );
+
+      mockGameService = {
+        getGame: async () => game,
+      } as any;
+      aiService = new AIService(mockGameService);
+
+      const result = await aiService.getGameRecommendation(
+        "property-test-game",
+        "player-1"
+      );
+      const recommendation = JSON.parse(result);
+
+      if (recommendation.action === "take_tokens") {
+        const tokens = recommendation.details.tokens;
+
+        // Should NOT take from depleted colors (diamond or sapphire)
+        expect(tokens.diamond || 0).toBe(0);
+        expect(tokens.sapphire || 0).toBe(0);
+
+        // If taking tokens, should only be from available colors
+        const totalTokens = Object.values(tokens).reduce(
+          (sum: number, count: any) => sum + count,
+          0
+        );
+        if (totalTokens > 0) {
+          // Verify all non-zero token requests are from available colors
+          Object.entries(tokens).forEach(([gem, count]) => {
+            if ((count as number) > 0) {
+              expect(
+                game.board.tokens[gem as keyof typeof game.board.tokens]
+              ).toBeGreaterThan(0);
+            }
+          });
+        }
+      }
+    }, 30000);
+
+    it("should never suggest taking 2 tokens of same color if bank has less than 4 remaining", async () => {
+      const game = createGameState(
+        { diamond: 1, sapphire: 1, emerald: 1, ruby: 0, onyx: 0, gold: 0 },
+        [],
+        [],
+        [
+          {
+            id: "card-1",
+            tier: 1,
+            prestige: 0,
+            gemBonus: "diamond",
+            cost: { diamond: 3 },
+          },
+        ],
+        { diamond: 3, sapphire: 3, emerald: 5, ruby: 5, onyx: 5, gold: 5 } // diamond and sapphire have only 3 each
+      );
+
+      mockGameService = {
+        getGame: async () => game,
+      } as any;
+      aiService = new AIService(mockGameService);
+
+      const result = await aiService.getGameRecommendation(
+        "property-test-game",
+        "player-1"
+      );
+      const recommendation = JSON.parse(result);
+
+      if (recommendation.action === "take_tokens") {
+        const tokens = recommendation.details.tokens;
+        const tokenEntries = Object.entries(tokens).filter(
+          ([_, count]) => (count as number) > 0
+        );
+
+        // Check if taking 2 of the same color
+        const takingTwoSame =
+          tokenEntries.length === 1 && tokenEntries[0][1] === 2;
+
+        if (takingTwoSame) {
+          const gem = tokenEntries[0][0];
+          const bankAvailable =
+            game.board.tokens[gem as keyof typeof game.board.tokens];
+
+          // Bank must have at least 4 tokens to take 2 of the same color
+          expect(bankAvailable).toBeGreaterThanOrEqual(4);
+        }
+      }
+    }, 30000);
+  });
+
+  describe("Property 3: AI should not suggest exceeding 10 token limit", () => {
     it("should not recommend taking tokens when player already has 10 tokens", async () => {
       const game = createGameState(
         { diamond: 3, sapphire: 3, emerald: 2, ruby: 2, onyx: 0, gold: 0 }, // 10 tokens total
@@ -336,7 +440,7 @@ describe("AIService Property-Based Tests", () => {
     }, 30000);
   });
 
-  describe("Property 3: AI should not suggest reserving when player has 3 reserved cards", () => {
+  describe("Property 4: AI should not suggest reserving when player has 3 reserved cards", () => {
     it("should not recommend reserving a card when player already has 3 reserved cards", async () => {
       const game = createGameState(
         { diamond: 2, sapphire: 1, emerald: 1, ruby: 0, onyx: 0, gold: 1 },
@@ -452,7 +556,7 @@ describe("AIService Property-Based Tests", () => {
     }, 30000);
   });
 
-  describe("Property 4: Confidence score should increase when close to winning", () => {
+  describe("Property 5: Confidence score should increase when close to winning", () => {
     it("should have higher confidence when player is 1 move away from winning vs early game", async () => {
       // Early game state
       const earlyGame = createGameState(
@@ -582,5 +686,153 @@ describe("AIService Property-Based Tests", () => {
         expect(lateConfidence).toBeGreaterThanOrEqual(7);
       }
     }, 60000); // Longer timeout as this makes 2 API calls
+  });
+
+  describe("Property 6: AI should suggest valid card purchases based on available resources", () => {
+    it("should only recommend purchasing cards that player can afford with current tokens and bonuses", async () => {
+      const expensiveCard = {
+        id: "expensive-card",
+        tier: 3,
+        prestige: 4,
+        gemBonus: "diamond",
+        cost: { diamond: 5, sapphire: 5, emerald: 3, ruby: 0, onyx: 0 },
+      };
+
+      const affordableCard = {
+        id: "affordable-card",
+        tier: 1,
+        prestige: 1,
+        gemBonus: "ruby",
+        cost: { diamond: 1, sapphire: 1, emerald: 0, ruby: 0, onyx: 0 },
+      };
+
+      const game = createGameState(
+        { diamond: 2, sapphire: 2, emerald: 1, ruby: 0, onyx: 0, gold: 1 },
+        [
+          {
+            id: "bonus-card",
+            tier: 1,
+            prestige: 0,
+            gemBonus: "diamond",
+            cost: { diamond: 2 },
+          },
+        ], // Has 1 diamond bonus
+        [],
+        [affordableCard, expensiveCard],
+        { diamond: 5, sapphire: 5, emerald: 5, ruby: 5, onyx: 5, gold: 5 }
+      );
+
+      mockGameService = {
+        getGame: async () => game,
+      } as any;
+      aiService = new AIService(mockGameService);
+
+      const result = await aiService.getGameRecommendation(
+        "property-test-game",
+        "player-1"
+      );
+      const recommendation = JSON.parse(result);
+
+      if (recommendation.action === "purchase_card") {
+        const cardId = recommendation.details.cardId;
+        const payment = recommendation.details.payment || {};
+
+        // Find the card being purchased
+        const allCards = [
+          ...game.board.availableCards.tier1,
+          ...game.board.availableCards.tier2,
+          ...game.board.availableCards.tier3,
+        ];
+        const card = allCards.find((c: any) => c.id === cardId);
+
+        expect(card).toBeDefined();
+
+        // Calculate player's bonuses
+        const playerBonuses = game.players[0].cards.reduce(
+          (acc: any, card: any) => {
+            acc[card.gemBonus] = (acc[card.gemBonus] || 0) + 1;
+            return acc;
+          },
+          { diamond: 0, sapphire: 0, emerald: 0, ruby: 0, onyx: 0 }
+        );
+
+        // Verify player can afford the card
+        let canAfford = true;
+        Object.entries(card.cost).forEach(([gem, costAmount]) => {
+          const cost = costAmount as number;
+          const bonus = playerBonuses[gem] || 0;
+          const paid = payment[gem as keyof typeof payment] || 0;
+          const playerTokens = game.players[0].tokens[gem as keyof typeof game.players[0].tokens] || 0;
+
+          // Check if payment is valid
+          if (paid > playerTokens) {
+            canAfford = false;
+          }
+
+          // Check if total coverage (payment + bonus) meets cost
+          if (paid + bonus < cost) {
+            canAfford = false;
+          }
+        });
+
+        expect(canAfford).toBe(true);
+      }
+    }, 30000);
+  });
+
+  describe("Property 7: AI should not recommend invalid reserve actions", () => {
+    it("should only recommend reserving visible cards from the board, not from decks when cards are available", async () => {
+      const visibleCard1 = {
+        id: "visible-tier2-card",
+        tier: 2,
+        prestige: 2,
+        gemBonus: "emerald",
+        cost: { emerald: 3, ruby: 2, onyx: 2 },
+      };
+
+      const visibleCard2 = {
+        id: "visible-tier3-card",
+        tier: 3,
+        prestige: 4,
+        gemBonus: "diamond",
+        cost: { diamond: 5, sapphire: 3, ruby: 3 },
+      };
+
+      const game = createGameState(
+        { diamond: 1, sapphire: 1, emerald: 1, ruby: 0, onyx: 0, gold: 0 },
+        [],
+        [], // No reserved cards yet
+        [visibleCard1, visibleCard2],
+        { diamond: 5, sapphire: 5, emerald: 5, ruby: 5, onyx: 5, gold: 5 }
+      );
+
+      mockGameService = {
+        getGame: async () => game,
+      } as any;
+      aiService = new AIService(mockGameService);
+
+      const result = await aiService.getGameRecommendation(
+        "property-test-game",
+        "player-1"
+      );
+      const recommendation = JSON.parse(result);
+
+      if (recommendation.action === "reserve_card") {
+        const cardId = recommendation.details.cardId;
+
+        // Verify the card being reserved exists on the board
+        const allVisibleCards = [
+          ...game.board.availableCards.tier1,
+          ...game.board.availableCards.tier2,
+          ...game.board.availableCards.tier3,
+        ];
+
+        const cardExists = allVisibleCards.some((c: any) => c.id === cardId);
+        expect(cardExists).toBe(true);
+
+        // Verify player doesn't already have 3 reserved cards
+        expect(game.players[0].reservedCards.length).toBeLessThan(3);
+      }
+    }, 30000);
   });
 });

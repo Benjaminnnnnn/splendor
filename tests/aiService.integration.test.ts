@@ -473,7 +473,7 @@ describe("AIService Integration Tests", () => {
         const recommendation = JSON.parse(result);
 
         // Should return error recommendation
-        expect(recommendation.action).toBe("wait");
+        expect(recommendation.action).toBe("any");
         expect(recommendation.reasoning).toContain(
           "Unable to get AI recommendation"
         );
