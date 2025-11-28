@@ -1,19 +1,21 @@
-import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import fs from 'fs';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
 import dotenv from 'dotenv';
+import express from 'express';
+import fs from 'fs';
+import helmet from 'helmet';
+import { createServer } from 'http';
+import morgan from 'morgan';
 import path from 'path';
+import { Server } from 'socket.io';
+import { syncAchievementCatalog } from './data/achievementsCatalog';
+import achievementRoutes from './routes/achievementRoutes';
 import gameRoutes from './routes/gameRoutes';
-import userRoutes from './routes/userRoutes';
 import lobbyRoutes from './routes/lobbyRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+import userRoutes from './routes/userRoutes';
 import aiRoutes from './routes/aiRoutes';
-import { GameSocketHandler } from './sockets/gameSocket';
 import { GameService } from './services/gameService';
+import { GameSocketHandler } from './sockets/gameSocket';
 
 dotenv.config();
 
@@ -90,6 +92,7 @@ app.use('/docs', express.static(docsPath));
 
 // Routes
 app.use('/api/games', gameRoutes(gameService));
+app.use('/api/users', achievementRoutes());
 app.use('/api/users', userRoutes());
 app.use('/api/lobbies', lobbyRoutes());
 app.use('/api/notifications', notificationRoutes());
@@ -105,6 +108,9 @@ app.get('/api-spec', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
+
+// Seed achievements catalog (idempotent on code)
+syncAchievementCatalog();
 
 // Socket.IO handling
 const gameSocketHandler = new GameSocketHandler(io, gameService);

@@ -1,3 +1,4 @@
+
 export enum GemType {
   DIAMOND = 'diamond',
   SAPPHIRE = 'sapphire',
