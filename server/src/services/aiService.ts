@@ -6,7 +6,8 @@ export interface AIRecommendation {
     | "take_tokens"
     | "purchase_card"
     | "reserve_card"
-    | "purchase_reserved_card";
+    | "purchase_reserved_card"
+    | "any";
   reasoning: string;
   details: {
     // For take_tokens action
@@ -48,6 +49,20 @@ export class AIService {
     return this.openAIProvider;
   }
 
+  private buildResponse(
+    action: string,
+    reasoning: string,
+    confidenceScore: number = 5,
+    details: any = {}
+  ): any {
+    return {
+      action,
+      reasoning,
+      details,
+      confidenceScore,
+    };
+  }
+
   async getGameRecommendation(
     gameId: string,
     playerId: string
@@ -66,21 +81,23 @@ export class AIService {
       const isPlayerTurn =
         game.players[game.currentPlayerIndex]?.id === playerId;
       if (!isPlayerTurn) {
-        return JSON.stringify({
-          action: "wait",
-          reasoning:
+        return JSON.stringify(
+          this.buildResponse(
+            "wait",
             "It's not your turn yet. Wait for your opponents to complete their moves.",
-          details: {},
-          confidenceScore: 10,
-        });
+            10
+          )
+        );
       }
 
       // Build a concise game state summary for the AI
       const prompt = this.buildGameStatePrompt(game, currentPlayer, playerId);
+      console.log("AI Prompt:", prompt);
 
       // Get recommendation from OpenAI
       const openAI = this.getOpenAIProvider();
       const recommendation = await openAI.sendMessage(prompt);
+      console.log("AI Recommendation:", recommendation);
 
       // Validate and potentially fix the recommendation
       const validatedRecommendation = this.validateRecommendation(
@@ -92,12 +109,13 @@ export class AIService {
       return JSON.stringify(validatedRecommendation);
     } catch (error) {
       console.error("Error getting AI recommendation:", error);
-      return JSON.stringify({
-        action: "wait",
-        reasoning: "Unable to get AI recommendation at this time.",
-        details: {},
-        confidenceScore: 0,
-      });
+      return JSON.stringify(
+        this.buildResponse(
+          "any",
+          "Unable to get AI recommendation at this time.",
+          0
+        )
+      );
     }
   }
 
@@ -116,13 +134,11 @@ export class AIService {
       console.warn(
         "AI recommended taking tokens but player already has 10 tokens. Overriding to purchase/reserve."
       );
-      return {
-        action: "wait",
-        reasoning:
-          "You already have the maximum 10 tokens. Consider purchasing a card or reserving one instead.",
-        details: {},
-        confidenceScore: 5,
-      };
+      return this.buildResponse(
+        "any",
+        "You have 10 tokens (the maximum). Focus on purchasing cards to gain prestige points and free up token space.",
+        7
+      );
     }
 
     // Rule 2: Cannot take tokens that would exceed 10 token limit
@@ -130,7 +146,11 @@ export class AIService {
       recommendation.action === "take_tokens" &&
       recommendation.details.tokens
     ) {
-      const newTokens = Object.values(recommendation.details.tokens).reduce(
+      const tokensTaken = recommendation.details.tokens;
+      const tokenEntries = Object.entries(tokensTaken).filter(
+        ([_, count]) => (count as number) > 0
+      );
+      const newTokens = Object.values(tokensTaken).reduce(
         (sum: number, count: any) => sum + count,
         0
       );
@@ -140,12 +160,56 @@ export class AIService {
         console.warn(
           `AI recommended taking ${newTokens} tokens but can only take max 3 per turn. Overriding.`
         );
-        return {
-          action: "wait",
-          reasoning: `Cannot take ${newTokens} tokens in one turn. You can take up to 3 tokens: either 3 different colors or 2 of the same color.`,
-          details: {},
-          confidenceScore: 5,
-        };
+        return this.buildResponse(
+          "any",
+          "AI could not provide a recommendation.",
+          0
+        );
+      }
+
+      // Rule 2a-extra: Validate token taking patterns
+      // Valid patterns: 3 different (1 each) OR 2 same (2 of one color only)
+      if (newTokens === 3) {
+        // Must be 3 different colors with 1 each
+        const isValid =
+          tokenEntries.length === 3 &&
+          tokenEntries.every(([_, count]) => count === 1);
+        if (!isValid) {
+          console.warn(
+            `AI recommended invalid 3-token pattern: ${JSON.stringify(
+              tokensTaken
+            )}. Must be 3 different colors with 1 each.`
+          );
+          return this.buildResponse(
+            "any",
+            "AI could not provide a recommendation.",
+            0
+          );
+        }
+      } else if (newTokens === 2) {
+        // Must be 2 of the same color (only 1 entry with count=2)
+        const isValid = tokenEntries.length === 1 && tokenEntries[0][1] === 2;
+        if (!isValid) {
+          console.warn(
+            `AI recommended invalid 2-token pattern: ${JSON.stringify(
+              tokensTaken
+            )}. Must be 2 of the SAME color only.`
+          );
+          return this.buildResponse(
+            "any",
+            "AI could not provide a recommendation.",
+            0
+          );
+        }
+      } else if (newTokens === 1) {
+        console.warn(
+          `AI recommended taking only 1 token, which is suboptimal but valid.`
+        );
+        return this.buildResponse(
+          "any",
+          "AI could not provide a recommendation.",
+          0
+        );
       }
 
       // Rule 2b: Cannot take tokens that would exceed 10 total
@@ -153,12 +217,11 @@ export class AIService {
         console.warn(
           `AI recommended taking ${newTokens} tokens but would exceed 10 token limit (current: ${totalTokens}). Adjusting.`
         );
-        return {
-          action: "wait",
-          reasoning: `Taking ${newTokens} tokens would exceed the 10 token limit. Consider purchasing a card instead.`,
-          details: {},
-          confidenceScore: 5,
-        };
+        return this.buildResponse(
+          "any",
+          "AI could not provide a  recommendation.",
+          0
+        );
       }
     }
 
@@ -170,13 +233,11 @@ export class AIService {
       console.warn(
         "AI recommended reserving but player already has 3 reserved cards. Overriding."
       );
-      return {
-        action: "wait",
-        reasoning:
-          "You already have the maximum 3 reserved cards. Purchase one of your reserved cards or take tokens.",
-        details: {},
-        confidenceScore: 5,
-      };
+      return this.buildResponse(
+        "any",
+        "AI could not provide a recommendation.",
+        0
+      );
     }
 
     // If all validations pass, return original recommendation
@@ -199,7 +260,7 @@ export class AIService {
       .map((card: any) => this.formatCardDetails(card))
       .join("\n  ");
 
-    return `You are an expert Splendor board game strategist. Analyze the current game state and provide a recommendation in VALID JSON format.
+    const prompt = `You are an expert Splendor board game strategist. Analyze the current game state and provide a recommendation in VALID JSON format.
 
 CURRENT PLAYER STATE:
 - Prestige Points: ${currentPlayer.prestige}
@@ -214,14 +275,23 @@ CURRENT PLAYER STATE:
 - Nobles: ${currentPlayer.nobles.length}
 
 GAME RULES - CRITICAL CONSTRAINTS:
-1. TOKEN TAKING: Players can take UP TO 3 TOKENS PER TURN in these valid patterns:
-   - Take 3 tokens of DIFFERENT colors (1 of each)
-   - Take 2 tokens of the SAME color
-   - DO NOT take more than 3 tokens total
-   - The bank has enough remaining token reserve for the requested tokens
-2. TOKEN LIMIT: Players can hold a MAXIMUM of 10 tokens. DO NOT recommend taking tokens if player already has 10 tokens.
+1. TOKEN TAKING - ONLY TWO VALID PATTERNS (choose ONE):
+   OPTION A: Take EXACTLY 3 tokens of DIFFERENT colors (1 diamond, 1 sapphire, 1 emerald - for example)
+   OPTION B: Take EXACTLY 2 tokens of the SAME color ONLY (2 ruby and NOTHING else - for example)
+   
+   INVALID EXAMPLES (DO NOT DO THIS):
+   ❌ 2 ruby + 1 onyx (mixing 2 of same with another color)
+   ❌ 2 diamond + 2 sapphire (taking 4 tokens total)
+   ❌ 1 diamond + 1 sapphire (only 2 tokens of different colors)
+   
+   The bank must have sufficient token reserves for the player to take tokens. And if the player wants to draw 2 tokens of the same color, there must be at least 4 tokens of that color in the bank.
+
+2. TOKEN LIMIT: Players can hold a MAXIMUM of 10 tokens total. DO NOT recommend taking tokens if player already has 10 tokens.
+
 3. When taking tokens, ensure the total (current + new tokens) does NOT exceed 10.
+
 4. RESERVE LIMIT: Players can reserve a MAXIMUM of 3 cards. DO NOT recommend reserving if player already has 3 reserved cards.
+
 5. WINNING: To win, a player needs 15 prestige points.
 
 OPPONENTS:
@@ -281,6 +351,7 @@ IMPORTANT: Do NOT include fields set to "undefined" or "null". Simply OMIT field
 For example, if action is "take_tokens", ONLY include the "tokens" field in details.
 
 Focus on the best strategic move to win. Return ONLY the JSON, no other text.`;
+    return prompt;
   }
 
   private calculateBonuses(cards: any[]): any {
