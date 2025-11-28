@@ -12,6 +12,11 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["tests/**/*.test.ts", "tests/**/*.spec.ts"],
+    exclude: [
+      ...configDefaults.exclude,
+      "tests/**/*.e2e.test.{ts,tsx}",
+      "playwright.config.ts",
+    ],
     passWithNoTests: true,
     coverage: {
       provider: "v8",
