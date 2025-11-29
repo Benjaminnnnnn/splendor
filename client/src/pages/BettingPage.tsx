@@ -181,10 +181,15 @@ const BettingPage: React.FC = () => {
   };
 
   const getOddsForPlayer = (game: GameWithStats, playerId: string): number => {
+    // If no betting stats at all, default odds is 2.0
     if (!game.bettingStats) return 2.0;
     
+    // If there are no bets in the game yet, default odds is 2.0
+    if (game.bettingStats.totalBets === 0) return 2.0;
+    
+    // If bets exist but not on this specific player, odds is 3.0
     const playerBet = game.bettingStats.playerBets.find(pb => pb.playerId === playerId);
-    return playerBet ? playerBet.odds : 2.0;
+    return playerBet ? playerBet.odds : 3.0;
   };
 
   const getBetStatusColor = (status: BetStatus): string => {
