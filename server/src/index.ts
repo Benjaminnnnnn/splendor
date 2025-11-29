@@ -12,15 +12,28 @@ import achievementRoutes from './routes/achievementRoutes';
 import gameRoutes from './routes/gameRoutes';
 import lobbyRoutes from './routes/lobbyRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+
 import userRoutes from './routes/userRoutes';
+import chatRoutes from './routes/chatRoutes';
 import aiRoutes from './routes/aiRoutes';
-import { GameService } from './services/gameService';
 import { GameSocketHandler } from './sockets/gameSocket';
+import { ChatSocketHandler } from './sockets/chatSocket';
+import { GameService } from './services/gameService';
+import { ChatService } from './services/chatService';
+import { FriendshipService } from './services/friendshipService';
+import { ChatRepository } from './domain/ChatRepository';
+import { FriendshipRepository } from './domain/FriendshipRepository';
+
 
 dotenv.config();
 
 // Create a shared GameService instance
 const gameService = new GameService();
+// Create chat infrastructure
+const chatRepository = new ChatRepository();
+const friendshipRepository = new FriendshipRepository();
+const friendshipService = new FriendshipService(friendshipRepository);
+const chatService = new ChatService(chatRepository, friendshipService);
 
 // Enhanced logging utility
 const log = {
@@ -97,6 +110,7 @@ app.use('/api/users', userRoutes());
 app.use('/api/lobbies', lobbyRoutes());
 app.use('/api/notifications', notificationRoutes());
 app.use('/api/ai', aiRoutes(gameService));
+app.use('/api/chat', chatRoutes(chatService, friendshipService));
 
 // API Documentation endpoint
 app.get('/api-spec', (req, res) => {
@@ -114,6 +128,14 @@ syncAchievementCatalog();
 
 // Socket.IO handling
 const gameSocketHandler = new GameSocketHandler(io, gameService);
+const chatSocketHandler = new ChatSocketHandler(io, chatService);
+
+// Store io and chatService in app for access in controllers
+app.set('io', io);
+app.set('chatService', chatService);
+
+// Wire up chat handler to game socket handler
+gameSocketHandler.setChatSocketHandler(chatSocketHandler);
 gameSocketHandler.initialize();
 
 // Error handling middleware

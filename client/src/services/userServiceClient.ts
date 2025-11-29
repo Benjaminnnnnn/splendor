@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { User, UserStats, GameStatsUpdate } from '../../../shared/types/user';
+import { User, UserStats, GameStatsUpdate,AuthResponse } from '../../../shared/types/user';
 import { AchievementCode, AchievementCatalogEntryWithCode } from '../../../shared/data/achievement';
 
 export interface AchievementDto {
@@ -51,12 +51,12 @@ class UserServiceClient {
     this.baseURL = `${API_BASE_URL}/users`;
   }
 
-  async register(request: RegisterRequest): Promise<User> {
+  async register(request: RegisterRequest): Promise<AuthResponse> {
     const response = await axios.post(`${this.baseURL}/register`, request);
     return response.data;
   }
 
-  async login(request: LoginRequest): Promise<User> {
+  async login(request: LoginRequest): Promise<AuthResponse> {
     const response = await axios.post(`${this.baseURL}/login`, request);
     return response.data;
   }

@@ -14,16 +14,22 @@ import {
   Divider,
   Avatar,
   Snackbar,
-  Alert
+  Alert,
+  Button,
+  CircularProgress
 } from '@mui/material';
 import ChatIcon from '@mui/icons-material/Chat';
 import SendIcon from '@mui/icons-material/Send';
 import CloseIcon from '@mui/icons-material/Close';
 import GroupIcon from '@mui/icons-material/Group';
 import PersonIcon from '@mui/icons-material/Person';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { ChatMessage, MessageType } from '../../../shared/types/chat';
 import { socketService } from '../services/socketService';
 import { chatServiceClient } from '../services/chatServiceClient';
+import { userServiceClient } from '../services/userServiceClient';
+import { User } from '../../../shared/types/user';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ChatPanelProps {
   gameId?: string;
@@ -40,27 +46,55 @@ interface Conversation {
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({ gameId, currentPlayerId, currentPlayerName, onlineUsers = [] }) => {
+  const { user: authUser } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [currentTab, setCurrentTab] = useState(0); // 0: Group Chat, 1: Direct Messages
+  const [currentTab, setCurrentTab] = useState(0); // 0: Group Chat, 1: Direct Messages, 2: Add Friends
   const [messageInput, setMessageInput] = useState('');
   const [groupMessages, setGroupMessages] = useState<ChatMessage[]>([]);
   const [conversations, setConversations] = useState<Map<string, Conversation>>(new Map());
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [totalUnread, setTotalUnread] = useState(0);
   const [showGroupChatAlert, setShowGroupChatAlert] = useState(false);
-  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [friendRequestStatus, setFriendRequestStatus] = useState<{[userId: string]: 'idle' | 'sending' | 'sent' | 'error'}>({});
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!currentPlayerId || !currentPlayerName) return;
+    if (!authUser?.id || !authUser?.username) return;
 
-    console.log('ChatPanel: Registering user for chat:', currentPlayerId, currentPlayerName);
-    // Register for chat when component mounts
-    socketService.registerForChat(currentPlayerId, currentPlayerName);
+    console.log('ChatPanel: Registering user for chat:', authUser.id, authUser.username);
+    // Register for chat when component mounts - use authUser for DM routing
+    socketService.registerForChat(authUser.id, authUser.username);
 
     // Load existing conversations
     loadConversations();
-  }, [currentPlayerId, currentPlayerName]);
+
+    // Listen for friend added events
+    const handleFriendAdded = (friend: { id: string; username: string }) => {
+      console.log('ChatPanel: Friend added:', friend);
+      setConversations(prev => {
+        const newConversations = new Map(prev);
+        if (!newConversations.has(friend.id)) {
+          newConversations.set(friend.id, {
+            userId: friend.id,
+            username: friend.username,
+            messages: [],
+            unreadCount: 0
+          });
+        }
+        return newConversations;
+      });
+    };
+
+    socketService.on('friend:added', handleFriendAdded);
+
+    return () => {
+      socketService.off('friend:added', handleFriendAdded);
+    };
+  }, [authUser?.id, authUser?.username]);
 
   // Separate useEffect for message handling to avoid re-creating the handler
   useEffect(() => {
@@ -81,40 +115,41 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ gameId, currentPlayerId, c
           return [...prev, message];
         });
       } else if (message.type === MessageType.DIRECT) {
-        const otherUserId = message.senderId === currentPlayerId ? message.recipientId! : message.senderId;
-        
+        // For DMs, compare with authUser.id (the authenticated user)
+        const otherUserId = message.senderId === authUser?.id ? message.recipientId! : message.senderId;
+
         setConversations(prev => {
           const newConversations = new Map(prev);
           const existing = newConversations.get(otherUserId);
-          
+
           if (existing) {
             // Prevent duplicates in direct messages too
             const exists = existing.messages.some(m => m.id === message.id);
             if (!exists) {
               existing.messages.push(message);
               // Increment unread if not currently viewing this conversation
-              if (selectedConversation !== otherUserId && message.senderId !== currentPlayerId) {
+              if (selectedConversation !== otherUserId && message.senderId !== authUser?.id) {
                 existing.unreadCount++;
               }
             }
           } else {
-            // Find username from online users or use userId as fallback
-            const username = onlineUsers.find(u => u.id === otherUserId)?.username || otherUserId;
+            // Use sender's name from the message
+            const username = message.senderName || otherUserId;
             newConversations.set(otherUserId, {
               userId: otherUserId,
               username,
               messages: [message],
-              unreadCount: message.senderId !== currentPlayerId ? 1 : 0
+              unreadCount: message.senderId !== authUser?.id ? 1 : 0
             });
           }
-          
+
           return newConversations;
         });
       }
     };
 
     socketService.onChatMessage(handleChatMessage);
-  }, [currentPlayerId, gameId, selectedConversation, onlineUsers]);
+  }, [currentPlayerId, gameId, selectedConversation, onlineUsers, authUser]);
 
   useEffect(() => {
     // Calculate total unread messages
@@ -131,43 +166,44 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ gameId, currentPlayerId, c
   }, [groupMessages, conversations, selectedConversation]);
 
   const loadConversations = async () => {
-    if (!currentPlayerId) return;
-    
+    if (!authUser?.id) return;
+
     try {
-      const convos = await chatServiceClient.getUserConversations(currentPlayerId);
+      // Load friends instead of conversations
+      const friends = await chatServiceClient.getFriends(authUser.id);
       const newConversations = new Map<string, Conversation>();
-      
-      for (const convo of convos) {
-        const username = onlineUsers.find(u => u.id === convo.peerId)?.username || convo.peerId;
-        newConversations.set(convo.peerId, {
-          userId: convo.peerId,
-          username,
-          messages: convo.messages,
+
+      // Initialize conversation for each friend
+      for (const friend of friends) {
+        newConversations.set(friend.id, {
+          userId: friend.id,
+          username: friend.username,
+          messages: [],
           unreadCount: 0
         });
       }
-      
+
       setConversations(newConversations);
     } catch (error) {
-      console.error('Failed to load conversations:', error);
+      console.error('Failed to load friends:', error);
     }
   };
 
   const loadConversationHistory = async (peerId: string) => {
-    if (!currentPlayerId) return;
-    
+    if (!authUser?.id) return;
+
     try {
-      const messages = await chatServiceClient.getDirectMessageHistory(currentPlayerId, peerId);
-      
+      const messages = await chatServiceClient.getDirectMessageHistory(authUser.id, peerId);
+
       setConversations(prev => {
         const newConversations = new Map(prev);
         const existing = newConversations.get(peerId);
-        
+
         if (existing) {
           existing.messages = messages;
           existing.unreadCount = 0; // Mark as read when opening
         }
-        
+
         return newConversations;
       });
     } catch (error) {
@@ -176,21 +212,25 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ gameId, currentPlayerId, c
   };
 
   const handleSendMessage = () => {
-    if (!messageInput.trim() || !currentPlayerId || !currentPlayerName) {
-      console.log('Cannot send message - missing input or player info:', { messageInput: messageInput.trim(), currentPlayerId, currentPlayerName });
+    if (!messageInput.trim()) {
       return;
     }
 
-    console.log('Sending message:', { currentTab, gameId, selectedConversation, currentPlayerId });
+    console.log('Sending message:', { currentTab, gameId, selectedConversation, currentPlayerId, authUserId: authUser?.id });
 
     if (currentTab === 0) {
+      // Group chat - requires currentPlayerId and gameId
+      if (!currentPlayerId || !currentPlayerName) {
+        console.log('Cannot send message - missing player info:', { currentPlayerId, currentPlayerName });
+        return;
+      }
       // Check if gameId is available for group chat
       if (!gameId) {
         console.log('Cannot send group message - not in a game');
         setShowGroupChatAlert(true);
         return;
       }
-      // Send group message
+      // Send group message (use currentPlayerId for game context)
       console.log('Sending group message to gameId:', gameId);
       socketService.sendChatMessage(currentPlayerId, currentPlayerName, {
         type: MessageType.GROUP,
@@ -198,9 +238,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ gameId, currentPlayerId, c
         gameId
       });
     } else if (currentTab === 1 && selectedConversation) {
-      // Send direct message
-      console.log('Sending direct message to:', selectedConversation);
-      socketService.sendChatMessage(currentPlayerId, currentPlayerName, {
+      // Direct message - requires authUser
+      if (!authUser?.id || !authUser?.username) {
+        console.error('Cannot send DM - not authenticated');
+        return;
+      }
+      console.log('Sending direct message from', authUser.id, 'to:', selectedConversation);
+      socketService.sendChatMessage(authUser.id, authUser.username, {
         type: MessageType.DIRECT,
         content: messageInput,
         recipientId: selectedConversation
@@ -222,6 +266,49 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ gameId, currentPlayerId, c
   const handleSelectConversation = async (userId: string) => {
     setSelectedConversation(userId);
     await loadConversationHistory(userId);
+  };
+
+  const handleSearchUsers = async (query: string) => {
+    if (!query.trim() || !authUser?.id) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const results = await userServiceClient.searchUsers(query, 10);
+      // Filter out current user and existing friends
+      const friendIds = new Set(Array.from(conversations.keys()));
+      const filteredResults = results.filter(
+        user => user.id !== authUser.id && !friendIds.has(user.id)
+      );
+      setSearchResults(filteredResults);
+    } catch (error) {
+      console.error('Error searching users:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSendFriendRequest = async (friendId: string) => {
+    if (!authUser?.id) return;
+
+    setFriendRequestStatus(prev => ({ ...prev, [friendId]: 'sending' }));
+
+    try {
+      await chatServiceClient.addFriend(authUser.id, friendId);
+      setFriendRequestStatus(prev => ({ ...prev, [friendId]: 'sent' }));
+
+      // Reload friends list
+      await loadConversations();
+
+      // Remove from search results
+      setSearchResults(prev => prev.filter(user => user.id !== friendId));
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      setFriendRequestStatus(prev => ({ ...prev, [friendId]: 'error' }));
+    }
   };
 
   const renderGroupChat = () => {
@@ -303,33 +390,43 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ gameId, currentPlayerId, c
 
   const renderDirectMessages = () => {
     if (!selectedConversation) {
+      const friendList = Array.from(conversations.values());
+
       return (
         <Box sx={{ p: 2 }}>
-          <Typography variant="body2" color="text.secondary">
-            Select a user to start chatting
-          </Typography>
-          <List>
-            {onlineUsers.filter(u => u.id !== currentPlayerId).map(u => (
-              <ListItemButton key={u.id} onClick={() => handleSelectConversation(u.id)}>
-                <Avatar sx={{ mr: 2, width: 32, height: 32 }}>
-                  {u.username[0].toUpperCase()}
-                </Avatar>
-                <ListItemText 
-                  primary={u.username}
-                  secondary={conversations.get(u.id)?.messages.slice(-1)[0]?.content || 'Start a conversation'}
-                />
-                {conversations.get(u.id)?.unreadCount ? (
-                  <Badge badgeContent={conversations.get(u.id)?.unreadCount} color="error" />
-                ) : null}
-              </ListItemButton>
-            ))}
-          </List>
+          {friendList.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" align="center">
+              No friends yet. Add friends to start chatting!
+            </Typography>
+          ) : (
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Select a friend to start chatting
+              </Typography>
+              <List>
+                {friendList.map(friend => (
+                  <ListItemButton key={friend.userId} onClick={() => handleSelectConversation(friend.userId)}>
+                    <Avatar sx={{ mr: 2, width: 32, height: 32 }}>
+                      {friend.username[0].toUpperCase()}
+                    </Avatar>
+                    <ListItemText
+                      primary={friend.username}
+                      secondary={friend.messages.slice(-1)[0]?.content || 'Start a conversation'}
+                    />
+                    {friend.unreadCount > 0 && (
+                      <Badge badgeContent={friend.unreadCount} color="error" />
+                    )}
+                  </ListItemButton>
+                ))}
+              </List>
+            </>
+          )}
         </Box>
       );
     }
 
     const conversation = conversations.get(selectedConversation);
-    
+
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <Box sx={{ p: 1, bgcolor: 'grey.100', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -344,7 +441,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ gameId, currentPlayerId, c
         <Divider />
         <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
           {conversation?.messages.map((msg, idx) => {
-            const isOwnMessage = msg.senderId === currentPlayerId;
+            const isOwnMessage = msg.senderId === authUser?.id;
             return (
               <Box
                 key={idx}
@@ -395,6 +492,87 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ gameId, currentPlayerId, c
     );
   };
 
+  const renderAddFriends = () => {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <Box sx={{ p: 2 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search users by username..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              handleSearchUsers(e.target.value);
+            }}
+            disabled={isSearching}
+          />
+        </Box>
+        <Divider />
+        <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+          {isSearching ? (
+            <Typography variant="body2" color="text.secondary" align="center">
+              Searching...
+            </Typography>
+          ) : searchQuery.trim() === '' ? (
+            <Typography variant="body2" color="text.secondary" align="center">
+              Enter a username to search for friends
+            </Typography>
+          ) : searchResults.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" align="center">
+              No users found
+            </Typography>
+          ) : (
+            <List>
+              {searchResults.map(user => {
+                const status = friendRequestStatus[user.id] || 'idle';
+                return (
+                  <ListItemButton
+                    key={user.id}
+                    onClick={() => status === 'idle' && handleSendFriendRequest(user.id)}
+                    disabled={status !== 'idle'}
+                  >
+                    <Avatar sx={{ mr: 2, width: 32, height: 32 }}>
+                      {user.username[0].toUpperCase()}
+                    </Avatar>
+                    <ListItemText
+                      primary={user.username}
+                      secondary={user.email}
+                    />
+                    <IconButton
+                      size="small"
+                      disabled={status !== 'idle'}
+                      sx={{
+                        color: status === 'sent' ? 'success.main' : 'primary.main'
+                      }}
+                    >
+                      <PersonAddIcon />
+                    </IconButton>
+                    {status === 'sending' && (
+                      <Typography variant="caption" color="text.secondary">
+                        Sending...
+                      </Typography>
+                    )}
+                    {status === 'sent' && (
+                      <Typography variant="caption" color="success.main">
+                        Friend added!
+                      </Typography>
+                    )}
+                    {status === 'error' && (
+                      <Typography variant="caption" color="error">
+                        Failed
+                      </Typography>
+                    )}
+                  </ListItemButton>
+                );
+              })}
+            </List>
+          )}
+        </Box>
+      </Box>
+    );
+  };
+
   return (
     <Box
       sx={{
@@ -438,25 +616,26 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ gameId, currentPlayerId, c
           </Box>
           <Tabs value={currentTab} onChange={(_, v) => setCurrentTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tab icon={<GroupIcon />} label="Match Chat" />
-            <Tab 
+            <Tab
               icon={
                 <Badge badgeContent={totalUnread} color="error">
                   <PersonIcon />
                 </Badge>
-              } 
-              label="Direct" 
+              }
+              label="Direct"
             />
+            <Tab icon={<PersonAddIcon />} label="Add Friends" />
           </Tabs>
           <Box sx={{ flex: 1, overflow: 'hidden' }}>
-            {currentTab === 0 ? renderGroupChat() : renderDirectMessages()}
+            {currentTab === 0 ? renderGroupChat() : currentTab === 1 ? renderDirectMessages() : renderAddFriends()}
           </Box>
         </Paper>
       )}
-      
+
       {/* Alert for group chat restriction */}
-      <Snackbar 
-        open={showGroupChatAlert} 
-        autoHideDuration={3000} 
+      <Snackbar
+        open={showGroupChatAlert}
+        autoHideDuration={3000}
         onClose={() => setShowGroupChatAlert(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         sx={{ bottom: 80 }} // Position above the chat icon

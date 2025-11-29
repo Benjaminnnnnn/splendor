@@ -26,8 +26,8 @@ describe('Achievement Service with test DB', () => {
     syncAchievementCatalog(db);
     userRepo = new SqliteUserRepository(db);
     userService = new UserService(userRepo);
-    const createdUser = await userService.registerUser(`${baseUserId}-name`, `${baseUserId}@example.com`, 'password123');
-    userId = createdUser.id;
+    const authResponse = await userService.registerUser(`${baseUserId}-name`, `${baseUserId}@example.com`, 'password123');
+    userId = authResponse.user.id;
     achievementRepo = new SqliteAchievementRepository(db);
     achievementService = new AchievementService(achievementRepo);
   });
@@ -197,7 +197,8 @@ describe('Achievement Service with test DB', () => {
   });
 
   it('keeps achievements isolated per user', async () => {
-    const otherUser = await userService.registerUser('other-name', 'other@example.com', 'password123');
+    const otherAuthResponse = await userService.registerUser('other-name', 'other@example.com', 'password123');
+    const otherUserId = otherAuthResponse.user.id;
     await userService.updateUserStats(userId, {
       gamesPlayed: 25,
       gamesWon: 15,
@@ -209,11 +210,11 @@ describe('Achievement Service with test DB', () => {
       favoriteGemType: 'sapphire',
     });
     await achievementService.evaluateUserAchievements(userId);
-    const otherResult = await achievementService.evaluateUserAchievements(otherUser.id);
+    const otherResult = await achievementService.evaluateUserAchievements(otherUserId);
 
     // Verify only the first user has stored unlocks.
     const userRows = db.query('SELECT achievement_id FROM user_achievements WHERE user_id = ?', [userId]);
-    const otherRows = db.query('SELECT achievement_id FROM user_achievements WHERE user_id = ?', [otherUser.id]);
+    const otherRows = db.query('SELECT achievement_id FROM user_achievements WHERE user_id = ?', [otherUserId]);
     expect(userRows.length).toBeGreaterThan(0);
     expect(otherRows).toHaveLength(0);
     expect(otherResult.newlyUnlocked).toHaveLength(0);

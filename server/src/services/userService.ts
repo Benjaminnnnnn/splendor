@@ -1,13 +1,14 @@
 import { v4 as uuidv4 } from 'uuid';
 import { HashingService } from '../infrastructure/hashingService';
 import { EmailProvider } from '../infrastructure/emailProvider';
-import { User, UserStats, GameStatsUpdate } from '../../../shared/types/user';
 import { SqliteUserRepository, UserRepository } from '../repositories/userRepository';
+import { User, UserStats, GameStatsUpdate, AuthResponse } from '../../../shared/types/user';
+import { generateToken } from '../middleware/auth';
 
 export class UserService {
   constructor(private readonly repo: UserRepository = new SqliteUserRepository()) {}
 
-  async registerUser(username: string, email: string, password: string): Promise<User> {
+  async registerUser(username: string, email: string, password: string): Promise<AuthResponse> {
     // Validation
     if (!username || username.length < 3) {
       throw new Error('Username must be at least 3 characters');
@@ -34,11 +35,19 @@ export class UserService {
 
     await EmailProvider.sendWelcomeEmail(email, username);
 
-    return user;
+    const token = generateToken(userId, username, email);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    return { user, token, expiresAt };
   }
 
-  async loginUser(email: string, password: string): Promise<User> {
-    return this.repo.loginUser(email, password);
+  async loginUser(email: string, password: string): Promise<AuthResponse> {
+    const user: User = await this.repo.loginUser(email, password);
+
+    const token = generateToken(user.id, user.username, user.email);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    return { user, token, expiresAt };
   }
 
   async getUserById(userId: string): Promise<User | null> {

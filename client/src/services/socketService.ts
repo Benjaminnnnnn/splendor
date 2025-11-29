@@ -69,7 +69,7 @@ class SocketService {
 
     // Chat methods
   registerForChat(userId: string, username: string): void {
-    console.log('SocketService: Registering for chat', { userId, username, connected: this.socket?.connected });
+    // console.log('SocketService: Registering for chat', { userId, username, connected: this.socket?.connected });
     if (this.socket) {
       this.socket.emit('chat:register', { userId, username });
     } else {
@@ -103,6 +103,24 @@ class SocketService {
 
   onUserTyping(callback: (data: { userId: string, username: string, gameId?: string }) => void): void {
     this.typingCallback = callback;
+  }
+
+  /**
+   * Listen to a custom socket event
+   */
+  on(event: string, callback: (...args: any[]) => void): void {
+    if (this.socket) {
+      this.socket.on(event, callback);
+    }
+  }
+
+  /**
+   * Remove listener for a custom socket event
+   */
+  off(event: string, callback?: (...args: any[]) => void): void {
+    if (this.socket) {
+      this.socket.off(event, callback);
+    }
   }
 
   isConnected(): boolean {
