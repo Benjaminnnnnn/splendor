@@ -18,6 +18,8 @@ import { socketService } from '../services/socketService';
 import { userServiceClient } from '../services/userServiceClient';
 import GameBoard from '../components/GameBoard';
 import PlayerArea from '../components/PlayerArea';
+import { BettingPanel } from '../components/BettingPanel';
+import { GameBettingStats, Bet } from '../../../shared/types/betting';
 import { ChatPanel } from '../components/ChatPanel';
 import { colors, borderRadius } from '../theme';
 
@@ -35,6 +37,11 @@ const GamePage: React.FC = () => {
   const achievementsEvaluatedRef = useRef(false);
   const [aiRecommendation, setAiRecommendation] = useState<string>('');
   const [isLoadingRecommendation, setIsLoadingRecommendation] = useState(false);
+  
+  // Betting state
+  const [userBalance, setUserBalance] = useState(1000);
+  const [bettingStats, setBettingStats] = useState<GameBettingStats | undefined>();
+  const [userBet, setUserBet] = useState<Bet | undefined>();
 
   useEffect(() => {
     if (!gameId) return;
@@ -73,6 +80,19 @@ const GamePage: React.FC = () => {
             }
           }
         });
+
+        // Fetch initial betting stats and balance
+        const balanceResponse = await fetch(`http://localhost:3001/api/bets/user/${playerId}/balance`);
+        if (balanceResponse.ok) {
+          const balanceData = await balanceResponse.json();
+          setUserBalance(balanceData.balance);
+        }
+
+        const statsResponse = await fetch(`http://localhost:3001/api/bets/game/${gameId}/stats`);
+        if (statsResponse.ok) {
+          const stats = await statsResponse.json();
+          setBettingStats(stats);
+        }
 
       } catch (error) {
         console.error('Error initializing game:', error);
@@ -210,6 +230,60 @@ const GamePage: React.FC = () => {
     navigate('/');
   };
 
+  const fetchBettingStats = async () => {
+    if (!gameId || !currentPlayer) return;
+
+    try {
+      const statsResponse = await fetch(`http://localhost:3001/api/bets/game/${gameId}/stats`);
+      if (statsResponse.ok) {
+        const stats = await statsResponse.json();
+        setBettingStats(stats);
+      }
+    } catch (error) {
+      console.error('Error fetching betting stats:', error);
+    }
+  };
+
+  const handlePlaceBet = async (playerId: string, amount: number): Promise<void> => {
+    if (!gameId || !currentPlayer) {
+      throw new Error('Game or player not found');
+    }
+
+    try {
+      const response = await fetch('http://localhost:3001/api/bets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentPlayer,
+          gameId,
+          playerId,
+          amount
+        })
+      });
+
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to place bet');
+        } else {
+          const text = await response.text();
+          throw new Error(`Server error: ${response.status} - ${text}`);
+        }
+      }
+
+      const data = await response.json();
+      setUserBalance(data.newBalance);
+      setUserBet(data.bet);
+      
+      // Fetch updated betting stats to refresh odds
+      await fetchBettingStats();
+    } catch (error) {
+      console.error('Error placing bet:', error);
+      throw error;
+    }
+  };
+
   const isPlayerWinner = (playerId: string): boolean => {
     return game?.winner?.id === playerId;
   };
@@ -245,9 +319,9 @@ const GamePage: React.FC = () => {
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
         display: 'grid',
-        gridTemplateColumns: '1fr 280px', // Reduced from 320px
-        gap: 2, // Reduced from 3
-        p: 1.5, // Reduced from 2
+        gridTemplateColumns: '1fr 280px', // Game board and player sidebar
+        gap: 2,
+        p: 1.5,
         '@media (max-width: 1200px)': {
           gridTemplateColumns: '1fr',
           gap: 2,
@@ -334,6 +408,32 @@ const GamePage: React.FC = () => {
             />
           </Box>
         ))}
+
+        {/* Betting Panel */}
+        {game && currentPlayer && (
+          <Box sx={{ mt: 2 }}>
+            <BettingPanel
+              gameId={gameId || ''}
+              userId={currentPlayer}
+              players={game.players.map(p => ({
+                id: p.id,
+                name: p.name,
+                prestige: p.prestige,
+                cards: p.cards.length,
+                nobles: p.nobles.length
+              }))}
+              userBalance={userBalance}
+              onPlaceBet={handlePlaceBet}
+              bettingStats={bettingStats}
+              userBet={userBet}
+              gameState={
+                game.state === GameState.WAITING_FOR_PLAYERS ? 'waiting' :
+                game.state === GameState.IN_PROGRESS ? 'in_progress' :
+                'finished'
+              }
+            />
+          </Box>
+        )}
       </Box>
 
       {/* Game Over Dialog */}

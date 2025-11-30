@@ -16,6 +16,7 @@ import notificationRoutes from './routes/notificationRoutes';
 import userRoutes from './routes/userRoutes';
 import chatRoutes from './routes/chatRoutes';
 import aiRoutes from './routes/aiRoutes';
+import bettingRoutes from './routes/bettingRoutes';
 import { GameSocketHandler } from './sockets/gameSocket';
 import { ChatSocketHandler } from './sockets/chatSocket';
 import { GameService } from './services/gameService';
@@ -110,6 +111,7 @@ app.use('/api/users', userRoutes());
 app.use('/api/lobbies', lobbyRoutes());
 app.use('/api/notifications', notificationRoutes());
 app.use('/api/ai', aiRoutes(gameService));
+app.use('/api/bets', bettingRoutes);
 app.use('/api/chat', chatRoutes(chatService, friendshipService));
 
 // API Documentation endpoint
