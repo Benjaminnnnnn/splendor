@@ -7,6 +7,7 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       'tests/**/*.e2e.{ts,tsx}',
+      'tests/betting.e2e.test.ts',
       'playwright.config.ts'
     ]
   }
