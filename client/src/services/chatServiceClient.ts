@@ -8,6 +8,12 @@ export interface Friend {
   username: string;
 }
 
+export interface FriendRequest {
+  userId: string;
+  username: string;
+  createdAt: Date;
+}
+
 class ChatServiceClient {
   /**
    * Fetch direct message history between current user and another user
@@ -49,6 +55,43 @@ class ChatServiceClient {
       return response.data.friend;
     } catch (error) {
       console.error('Error adding friend:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get pending friend requests
+   */
+  async getPendingRequests(userId: string): Promise<FriendRequest[]> {
+    try {
+      const response = await axios.get(`${API_URL}/chat/users/${userId}/friends/requests`);
+      return response.data.requests;
+    } catch (error) {
+      console.error('Error fetching pending requests:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Accept a friend request
+   */
+  async acceptFriendRequest(userId: string, friendId: string): Promise<void> {
+    try {
+      await axios.post(`${API_URL}/chat/users/${userId}/friends/accept`, { friendId });
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reject a friend request
+   */
+  async rejectFriendRequest(userId: string, friendId: string): Promise<void> {
+    try {
+      await axios.post(`${API_URL}/chat/users/${userId}/friends/reject`, { friendId });
+    } catch (error) {
+      console.error('Error rejecting friend request:', error);
       throw error;
     }
   }

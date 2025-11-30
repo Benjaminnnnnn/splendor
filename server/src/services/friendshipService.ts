@@ -1,4 +1,4 @@
-import { FriendshipRepository } from '../domain/FriendshipRepository';
+import { FriendshipRepository, FriendRequest } from '../domain/FriendshipRepository';
 
 export interface Friend {
   id: string;
@@ -16,13 +16,40 @@ export class FriendshipService {
   }
 
   /**
-   * Add a friendship between two users
+   * Send a friend request
    */
-  addFriendship(userId1: string, userId2: string): void {
-    if (userId1 === userId2) {
-      throw new Error('Cannot add yourself as a friend');
+  sendFriendRequest(fromUserId: string, toUserId: string): void {
+    if (fromUserId === toUserId) {
+      throw new Error('Cannot send friend request to yourself');
     }
-    this.friendshipRepository.addFriendship(userId1, userId2);
+    if (this.friendshipRepository.areFriends(fromUserId, toUserId)) {
+      throw new Error('Already friends');
+    }
+    if (this.friendshipRepository.hasRequest(fromUserId, toUserId)) {
+      throw new Error('Friend request already sent');
+    }
+    this.friendshipRepository.sendRequest(fromUserId, toUserId);
+  }
+
+  /**
+   * Accept a friend request
+   */
+  acceptFriendRequest(fromUserId: string, toUserId: string): void {
+    this.friendshipRepository.acceptRequest(fromUserId, toUserId);
+  }
+
+  /**
+   * Reject a friend request
+   */
+  rejectFriendRequest(fromUserId: string, toUserId: string): void {
+    this.friendshipRepository.rejectRequest(fromUserId, toUserId);
+  }
+
+  /**
+   * Get pending friend requests for a user
+   */
+  getPendingRequests(userId: string): FriendRequest[] {
+    return this.friendshipRepository.getPendingRequests(userId);
   }
 
   /**

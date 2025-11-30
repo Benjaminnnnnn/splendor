@@ -11,9 +11,32 @@ class SocketService {
   private typingCallback: ((data: { userId: string, username: string, gameId?: string }) => void) | null = null;
 
   connect(): void {
-    if (this.socket?.connected) return;
+    if (this.socket?.connected) {
+      console.log('SocketService: Already connected');
+      return;
+    }
 
-    this.socket = io(SOCKET_URL);
+    // If socket exists but is not connected, try to reconnect
+    if (this.socket && !this.socket.connected) {
+      console.log('SocketService: Socket exists but disconnected, reconnecting...');
+      this.socket.connect();
+      return;
+    }
+
+    console.log('SocketService: Creating new socket connection to', SOCKET_URL);
+    this.socket = io(SOCKET_URL, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5
+    });
+
+    this.socket.on('connect', () => {
+      console.log('SocketService: Connected to socket server');
+    });
+
+    this.socket.on('disconnect', () => {
+      console.log('SocketService: Disconnected from socket server');
+    });
 
     this.socket.on('game-state', (game: Game) => {
       if (this.gameStateCallback) {
@@ -69,17 +92,25 @@ class SocketService {
 
     // Chat methods
   registerForChat(userId: string, username: string): void {
-    // console.log('SocketService: Registering for chat', { userId, username, connected: this.socket?.connected });
-    if (this.socket) {
+    console.log('SocketService: Registering for chat', { userId, username, connected: this.socket?.connected });
+    if (this.socket?.connected) {
       this.socket.emit('chat:register', { userId, username });
     } else {
       console.error('SocketService: Cannot register - socket not connected');
+      // Try to connect if not connected
+      this.connect();
+      // Retry registration after a short delay
+      setTimeout(() => {
+        if (this.socket?.connected) {
+          this.socket.emit('chat:register', { userId, username });
+        }
+      }, 100);
     }
   }
 
   sendChatMessage(senderId: string, senderName: string, request: SendMessageRequest): void {
     console.log('SocketService: Sending chat message', { senderId, senderName, request, connected: this.socket?.connected });
-    if (this.socket) {
+    if (this.socket?.connected) {
       this.socket.emit('chat:send-message', {
         ...request,
         senderId,
@@ -87,6 +118,20 @@ class SocketService {
       });
     } else {
       console.error('SocketService: Cannot send message - socket not connected');
+      // Try to reconnect
+      this.connect();
+      // Retry sending after connection
+      setTimeout(() => {
+        if (this.socket?.connected) {
+          this.socket.emit('chat:send-message', {
+            ...request,
+            senderId,
+            senderName
+          });
+        } else {
+          console.error('SocketService: Failed to send message after reconnect attempt');
+        }
+      }, 100);
     }
   }
 

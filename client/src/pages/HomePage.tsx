@@ -26,6 +26,7 @@ import { Add as AddIcon, People as PeopleIcon, Lock as LockIcon, Public as Publi
 import { gameService } from '../services/gameService';
 import { useAuth } from '../contexts/AuthContext';
 import { Game } from '../../../shared/types/game';
+import { ChatPanel } from '../components/ChatPanel';
 
 const HomePage: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
@@ -811,6 +812,9 @@ const HomePage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Add ChatPanel for DMs and friend requests */}
+      {isAuthenticated && <ChatPanel />}
     </Box>
   );
 };

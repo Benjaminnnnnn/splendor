@@ -1,47 +1,15 @@
 import { ChatMessage, MessageType } from '../../../shared/types/chat';
+import { DatabaseConnection } from '../infrastructure/database';
 
 /**
- * In-memory repository for chat messages
- * Future enhancement: Replace with database persistence (Postgres/SQLite/Redis)
+ * Database-backed repository for chat messages
+ * Stores messages in SQLite for persistence
  */
 export class ChatRepository {
-  // Store direct messages: Map<conversationKey, ChatMessage[]>
-  // conversationKey is formed by sorting two userIds: "userId1:userId2"
-  private directMessages: Map<string, ChatMessage[]> = new Map();
-  
-  // Store user socket mappings: Map<userId, socketId>
-  // One socket per user (simplified)
-  private userSockets: Map<string, string> = new Map();
+  private db: DatabaseConnection;
 
-  /**
-   * Get conversation key for two users (always sorted for consistency)
-   */
-  private getConversationKey(userId1: string, userId2: string): string {
-    return [userId1, userId2].sort().join(':');
-  }
-
-  /**
-   * Register a socket connection for a user
-   */
-  registerUserSocket(userId: string, socketId: string): void {
-    this.userSockets.set(userId, socketId);
-  }
-
-  /**
-   * Unregister a socket connection for a user
-   */
-  unregisterUserSocket(userId: string, socketId: string): void {
-    const existingSocketId = this.userSockets.get(userId);
-    if (existingSocketId === socketId) {
-      this.userSockets.delete(userId);
-    }
-  }
-
-  /**
-   * Get socket ID for a user
-   */
-  getUserSocket(userId: string): string | undefined {
-    return this.userSockets.get(userId);
+  constructor() {
+    this.db = DatabaseConnection.getInstance();
   }
 
   /**
@@ -52,12 +20,21 @@ export class ChatRepository {
       throw new Error('Invalid direct message');
     }
 
-    const key = this.getConversationKey(message.senderId, message.recipientId);
-    if (!this.directMessages.has(key)) {
-      this.directMessages.set(key, []);
-    }
+    this.db.run(
+      `INSERT INTO chat_messages (id, sender_id, sender_name, recipient_id, game_id, type, content, timestamp) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        message.id,
+        message.senderId,
+        message.senderName,
+        message.recipientId,
+        message.gameId || null,
+        message.type,
+        message.content,
+        message.timestamp.getTime(),
+      ]
+    );
 
-    this.directMessages.get(key)!.push(message);
     return message;
   }
 
@@ -65,11 +42,29 @@ export class ChatRepository {
    * Get direct message history between two users
    */
   getDirectMessageHistory(userId1: string, userId2: string, limit: number = 50): ChatMessage[] {
-    const key = this.getConversationKey(userId1, userId2);
-    const messages = this.directMessages.get(key) || [];
-    
-    // Return most recent messages (last N messages)
-    return messages.slice(-limit);
+    const rows = this.db.query(
+      `SELECT id, sender_id, sender_name, recipient_id, game_id, type, content, timestamp
+       FROM chat_messages
+       WHERE type = ? AND (
+         (sender_id = ? AND recipient_id = ?) OR
+         (sender_id = ? AND recipient_id = ?)
+       )
+       ORDER BY timestamp DESC
+       LIMIT ?`,
+      [MessageType.DIRECT, userId1, userId2, userId2, userId1, limit]
+    );
+
+    // Reverse to get chronological order (oldest first)
+    return rows.reverse().map((row: any) => ({
+      id: row.id,
+      senderId: row.sender_id,
+      senderName: row.sender_name,
+      recipientId: row.recipient_id,
+      gameId: row.game_id,
+      type: row.type as MessageType,
+      content: row.content,
+      timestamp: new Date(row.timestamp),
+    }));
   }
 
   /**
@@ -78,12 +73,33 @@ export class ChatRepository {
   getUserConversations(userId: string): Map<string, ChatMessage[]> {
     const conversations = new Map<string, ChatMessage[]>();
     
-    for (const [key, messages] of this.directMessages.entries()) {
-      const [user1, user2] = key.split(':');
-      if (user1 === userId || user2 === userId) {
-        const otherUserId = user1 === userId ? user2 : user1;
-        conversations.set(otherUserId, messages);
+    // Get all messages where user is sender or recipient
+    const rows = this.db.query(
+      `SELECT id, sender_id, sender_name, recipient_id, game_id, type, content, timestamp
+       FROM chat_messages
+       WHERE type = ? AND (sender_id = ? OR recipient_id = ?)
+       ORDER BY timestamp ASC`,
+      [MessageType.DIRECT, userId, userId]
+    );
+
+    // Group messages by conversation
+    for (const row of rows as any[]) {
+      const otherUserId = row.sender_id === userId ? row.recipient_id : row.sender_id;
+      
+      if (!conversations.has(otherUserId)) {
+        conversations.set(otherUserId, []);
       }
+
+      conversations.get(otherUserId)!.push({
+        id: row.id,
+        senderId: row.sender_id,
+        senderName: row.sender_name,
+        recipientId: row.recipient_id,
+        gameId: row.game_id,
+        type: row.type as MessageType,
+        content: row.content,
+        timestamp: new Date(row.timestamp),
+      });
     }
     
     return conversations;
@@ -93,7 +109,6 @@ export class ChatRepository {
    * Clear all data (useful for testing or reset)
    */
   clear(): void {
-    this.directMessages.clear();
-    this.userSockets.clear();
+    this.db.run('DELETE FROM chat_messages');
   }
 }

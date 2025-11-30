@@ -230,6 +230,47 @@ export class DatabaseConnection {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_user_achievements_achievement ON user_achievements(achievement_id);
     `);
+    // Friendships table (bidirectional relationships)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS friendships (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id_1 TEXT NOT NULL,
+        user_id_2 TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id_1) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id_2) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(user_id_1, user_id_2)
+      )
+    `);
+
+    // Friend requests table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS friend_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        from_user_id TEXT NOT NULL,
+        to_user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(from_user_id, to_user_id)
+      )
+    `);
+
+    // Chat messages table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id TEXT PRIMARY KEY,
+        sender_id TEXT NOT NULL,
+        sender_name TEXT NOT NULL,
+        recipient_id TEXT,
+        game_id TEXT,
+        type TEXT NOT NULL,
+        content TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
   }
 
   public query(sql: string, params?: any[]): any[] {

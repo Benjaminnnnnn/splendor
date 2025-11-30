@@ -47,7 +47,7 @@ export class FriendshipController {
 
   /**
    * POST /api/chat/users/:userId/friends
-   * Add a new friendship
+   * Send a friend request
    */
   addFriend = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -56,7 +56,7 @@ export class FriendshipController {
 
       // Verify authenticated user matches
       if (req.user && req.user.userId !== userId) {
-        res.status(403).json({ error: 'Not authorized to add friends for this user' });
+        res.status(403).json({ error: 'Not authorized to send friend requests for this user' });
         return;
       }
 
@@ -65,43 +65,161 @@ export class FriendshipController {
         return;
       }
 
-      // Verify both users exist
-      const user = await this.userService.getUserById(userId);
+      // Verify friend exists
       const friend = await this.userService.getUserById(friendId);
-
-      if (!user || !friend) {
+      if (!friend) {
         res.status(404).json({ error: 'User not found' });
         return;
       }
 
-      console.log(`FriendshipController: Adding friendship between ${userId} (${user.username}) and ${friendId} (${friend.username})`);
-      this.friendshipService.addFriendship(userId, friendId);
-      console.log(`FriendshipController: Friendship added successfully`);
+      console.log(`FriendshipController: Sending friend request from ${userId} to ${friendId}`);
+      this.friendshipService.sendFriendRequest(userId, friendId);
+      console.log(`FriendshipController: Friend request sent successfully`);
 
-      // Notify both users via socket about the new friendship
-      const io = (req.app as any).get('io');
-      const chatService = (req.app as any).get('chatService');
+      // Notify the recipient via socket
+      const app = req.app as unknown as { get: (key: string) => unknown };
+      const io = app.get('io');
+      const chatService = app.get('chatService');
       if (io && chatService) {
-        // Notify the user who sent the request
-        const userSocket = chatService.getUserSocket(userId);
-        if (userSocket) {
-          io.to(userSocket).emit('friend:added', { id: friend.id, username: friend.username });
-        }
-        
-        // Notify the friend who was added
-        const friendSocket = chatService.getUserSocket(friendId);
-        if (friendSocket) {
-          io.to(friendSocket).emit('friend:added', { id: user.id, username: user.username });
+        const recipientSocket = (chatService as { getUserSocket: (id: string) => string | undefined }).getUserSocket(friendId);
+        console.log(`FriendshipController: Recipient socket for ${friendId}:`, recipientSocket);
+        if (recipientSocket) {
+          const sender = await this.userService.getUserById(userId);
+          console.log(`FriendshipController: Emitting friend:request event to socket ${recipientSocket}`);
+          (io as { to: (socket: string) => { emit: (event: string, data: unknown) => void } }).to(recipientSocket).emit('friend:request', { userId, username: sender?.username || 'Unknown' });
+        } else {
+          console.log(`FriendshipController: Recipient ${friendId} not connected to socket`);
         }
       }
 
       res.status(201).json({ 
-        message: 'Friendship added successfully',
+        message: 'Friend request sent',
         friend: { id: friend.id, username: friend.username }
       });
     } catch (error) {
-      console.error('Error adding friend:', error);
+      console.error('Error sending friend request:', error);
       res.status(400).json({ error: (error as Error).message });
+    }
+  };
+
+  /**
+   * POST /api/chat/users/:userId/friends/accept
+   * Accept a friend request
+   */
+  acceptFriend = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId } = req.params;
+      const { friendId } = req.body;
+
+      if (req.user && req.user.userId !== userId) {
+        res.status(403).json({ error: 'Not authorized' });
+        return;
+      }
+
+      if (!friendId) {
+        res.status(400).json({ error: 'friendId is required' });
+        return;
+      }
+
+      this.friendshipService.acceptFriendRequest(friendId, userId);
+
+      const user = await this.userService.getUserById(userId);
+      const friend = await this.userService.getUserById(friendId);
+
+      // Notify both users via socket
+      const app = req.app as unknown as { get: (key: string) => unknown };
+      const io = app.get('io');
+      const chatService = app.get('chatService');
+      if (io && chatService && user && friend) {
+        const userSocket = (chatService as { getUserSocket: (id: string) => string | undefined }).getUserSocket(userId);
+        if (userSocket) {
+          (io as { to: (socket: string) => { emit: (event: string, data: unknown) => void } }).to(userSocket).emit('friend:added', { id: friend.id, username: friend.username });
+        }
+        
+        const friendSocket = (chatService as { getUserSocket: (id: string) => string | undefined }).getUserSocket(friendId);
+        if (friendSocket) {
+          (io as { to: (socket: string) => { emit: (event: string, data: unknown) => void } }).to(friendSocket).emit('friend:added', { id: user.id, username: user.username });
+        }
+      }
+
+      res.status(200).json({ message: 'Friend request accepted' });
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+      res.status(400).json({ error: (error as Error).message });
+    }
+  };
+
+  /**
+   * POST /api/chat/users/:userId/friends/reject
+   * Reject a friend request
+   */
+  rejectFriend = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId } = req.params;
+      const { friendId } = req.body;
+
+      if (req.user && req.user.userId !== userId) {
+        res.status(403).json({ error: 'Not authorized' });
+        return;
+      }
+
+      if (!friendId) {
+        res.status(400).json({ error: 'friendId is required' });
+        return;
+      }
+
+      this.friendshipService.rejectFriendRequest(friendId, userId);
+      
+      // Notify the sender that their request was rejected
+      const app = req.app as unknown as { get: (key: string) => unknown };
+      const io = app.get('io');
+      const chatService = app.get('chatService');
+      if (io && chatService) {
+        const senderSocket = (chatService as { getUserSocket: (id: string) => string | undefined }).getUserSocket(friendId);
+        console.log(`FriendshipController: Notifying sender ${friendId} of rejection, socket:`, senderSocket);
+        if (senderSocket) {
+          (io as { to: (socket: string) => { emit: (event: string, data: unknown) => void } }).to(senderSocket).emit('friend:request-rejected', { userId });
+        }
+      }
+      
+      res.status(200).json({ message: 'Friend request rejected' });
+    } catch (error) {
+      console.error('Error rejecting friend request:', error);
+      res.status(400).json({ error: (error as Error).message });
+    }
+  };
+
+  /**
+   * GET /api/chat/users/:userId/friends/requests
+   * Get pending friend requests
+   */
+  getPendingRequests = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId } = req.params;
+
+      if (req.user && req.user.userId !== userId) {
+        res.status(403).json({ error: 'Not authorized' });
+        return;
+      }
+
+      const requests = this.friendshipService.getPendingRequests(userId);
+      
+      // Enrich with user details
+      const enrichedRequests = await Promise.all(
+        requests.map(async (req) => {
+          const user = await this.userService.getUserById(req.fromUserId);
+          return {
+            userId: req.fromUserId,
+            username: user?.username || 'Unknown',
+            createdAt: req.createdAt
+          };
+        })
+      );
+      
+      res.status(200).json({ requests: enrichedRequests });
+    } catch (error) {
+      console.error('Error getting pending requests:', error);
+      res.status(500).json({ error: 'Failed to get pending requests' });
     }
   };
 

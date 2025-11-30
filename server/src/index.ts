@@ -23,8 +23,8 @@ import { GameService } from './services/gameService';
 import { ChatService } from './services/chatService';
 import { FriendshipService } from './services/friendshipService';
 import { ChatRepository } from './domain/ChatRepository';
+import { SocketManager } from './domain/SocketManager';
 import { FriendshipRepository } from './domain/FriendshipRepository';
-
 
 dotenv.config();
 
@@ -32,9 +32,10 @@ dotenv.config();
 const gameService = new GameService();
 // Create chat infrastructure
 const chatRepository = new ChatRepository();
+const socketManager = new SocketManager();
 const friendshipRepository = new FriendshipRepository();
 const friendshipService = new FriendshipService(friendshipRepository);
-const chatService = new ChatService(chatRepository, friendshipService);
+const chatService = new ChatService(chatRepository, socketManager, friendshipService);
 
 // Enhanced logging utility
 const log = {

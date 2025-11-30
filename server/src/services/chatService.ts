@@ -1,18 +1,24 @@
 import { ChatMessage, MessageType } from '../../../shared/types/chat';
 import { ChatRepository } from '../domain/ChatRepository';
+import { SocketManager } from '../domain/SocketManager';
 import { FriendshipService } from './friendshipService';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Chat service layer - handles business logic for chat operations
- * Clean abstraction allows easy migration to persistent storage later
  */
 export class ChatService {
   private chatRepository: ChatRepository;
+  private socketManager: SocketManager;
   private friendshipService: FriendshipService;
 
-  constructor(chatRepository: ChatRepository, friendshipService: FriendshipService) {
+  constructor(
+    chatRepository: ChatRepository,
+    socketManager: SocketManager,
+    friendshipService: FriendshipService
+  ) {
     this.chatRepository = chatRepository;
+    this.socketManager = socketManager;
     this.friendshipService = friendshipService;
   }
 
@@ -20,21 +26,21 @@ export class ChatService {
    * Register a user's socket connection
    */
   registerUserSocket(userId: string, socketId: string): void {
-    this.chatRepository.registerUserSocket(userId, socketId);
+    this.socketManager.registerUserSocket(userId, socketId);
   }
 
   /**
    * Unregister a user's socket connection
    */
   unregisterUserSocket(userId: string, socketId: string): void {
-    this.chatRepository.unregisterUserSocket(userId, socketId);
+    this.socketManager.unregisterUserSocket(userId, socketId);
   }
 
   /**
    * Get all socket IDs for a user (for message delivery)
    */
   getUserSocket(userId: string): string | undefined {
-    return this.chatRepository.getUserSocket(userId);
+    return this.socketManager.getUserSocket(userId);
   }
 
   /**
