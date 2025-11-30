@@ -172,6 +172,7 @@ export class DatabaseConnection {
     `);
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_bets_user_id ON bets(user_id)
+    `);
     // Achievement catalog
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS achievements (
