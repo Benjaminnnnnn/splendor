@@ -20,8 +20,13 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'rm -f ./data/splendor-test.db && DATABASE_PATH=./data/splendor-test.db npm run dev',
+      command: 'cd client && npm run dev',
       url: 'http://localhost:3000',
+      timeout: 120_000
+    },
+    {
+      command: 'cd server && DATABASE_PATH=./data/splendor-test.db npm run dev',
+      url: 'http://localhost:3001/health',
       timeout: 120_000
     }
   ]
