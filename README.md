@@ -1,5 +1,16 @@
 [![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/dzOxpFxL)
 
+### Planning Doc
+
+https://docs.google.com/document/d/1PAPP2f9cWRFYKT0ZIvfGKHRqpM4EXlPoIG2qE6m9Zqk/edit?tab=t.0#heading=h.gv3ovndfbn6s
+
+### AI Generated Code
+
+1. Frontend UI and assets for all features
+2. test templates and generators
+3. Infrastructure code
+4. Documentation
+
 # Splendor Board Game
 
 A web-based implementation of the popular board game Splendor, featuring a Node.js backend and modern web frontend.
@@ -39,3 +50,4 @@ To run the entire test suite (server, client, and shared):
 ```bash
 npm run test
 ```
+

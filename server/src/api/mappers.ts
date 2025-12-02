@@ -1,16 +1,10 @@
-import { Game } from '../domain/Game';
-import { Player } from '../domain/Player';
 import { Card } from '../domain/Card';
+import { Game } from '../domain/Game';
 import { Noble } from '../domain/Noble';
+import { Player } from '../domain/Player';
 import { TokenBank } from '../domain/TokenBank';
 import { GemType } from '../domain/types';
-import {
-  GameStateDTO,
-  PlayerDTO,
-  CardDTO,
-  NobleDTO,
-  TokenBankDTO
-} from './dtos';
+import { CardDTO, GameStateDTO, NobleDTO, PlayerDTO, TokenBankDTO, AchievementDto, AchievementRecord } from './dtos';
 
 /**
  * Mappers to convert between domain models and DTOs
@@ -22,7 +16,7 @@ export class DomainToDTOMapper {
     const status = game.getStatus();
     // Only access game board if decks have been initialized (game has started)
     const hasDecksInitialized = game.isInProgress() || game.isFinished();
-    
+
     return {
       id: game.id,
       name: game.name,
@@ -99,6 +93,18 @@ export class DomainToDTOMapper {
       ruby: bank.get(GemType.RUBY),
       onyx: bank.get(GemType.ONYX),
       gold: bank.get(GemType.GOLD),
+    };
+  }
+
+  static mapAchievement(record: AchievementRecord): AchievementDto {
+    return {
+      code: record.code,
+      name: record.name,
+      description: record.description,
+      category: record.category,
+      icon: record.icon || undefined,
+      unlockType: record.unlock_type,
+      sortOrder: record.sort_order,
     };
   }
 }

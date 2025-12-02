@@ -59,3 +59,28 @@ export interface GameStatsUpdate {
   highestPrestigeScore: number;
   favoriteGemType?: string;
 }
+
+// Achievement-related shared types
+export type Comparator = '>=' | '<=' | '>' | '<' | '=';
+export type UnlockType = 'threshold' | 'ratio' | 'composite';
+export type AchievementCategory = 'milestone' | 'speed' | 'prestige' | 'collection' | 'meta';
+export type AchievementStatKey = keyof UserStats;
+
+export interface AchievementCriterion {
+  statKey: AchievementStatKey;
+  comparator: Comparator;
+  targetValue: number;
+  denominatorStatKey?: AchievementStatKey;
+  minSampleSize?: number;
+}
+
+export interface AchievementCatalogEntry {
+  code: string;
+  name: string;
+  description: string;
+  category: AchievementCategory;
+  icon?: string;
+  unlockType: UnlockType;
+  sortOrder?: number;
+  criteria: AchievementCriterion[];
+}
