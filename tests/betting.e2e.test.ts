@@ -20,7 +20,7 @@ test.describe('Betting System E2E Tests', () => {
 
     expect(registerResponse.ok()).toBeTruthy();
     const userData = await registerResponse.json();
-    testUserId = userData.id; // API returns user object directly, not wrapped
+    testUserId = userData.user.id; // API returns AuthResponse with nested user object
   });
 
   test('should display user virtual currency balance', async ({ page, request }) => {
@@ -216,7 +216,7 @@ test.describe('Betting System E2E Tests', () => {
       }
     });
     const user2Data = await registerResponse.json();
-    const testUserId2 = user2Data.id;
+    const testUserId2 = user2Data.user.id;
 
     // User 1 bets on player 1
     await request.post(`${API_URL}/api/bets`, {
@@ -481,7 +481,7 @@ test.describe('Betting System E2E Tests', () => {
 
     expect(registerResponse.ok()).toBeTruthy();
     const userData = await registerResponse.json();
-    const newUserId = userData.id;
+    const newUserId = userData.user.id;
 
     // Check initial balance
     const balanceResponse = await request.get(`${API_URL}/api/bets/user/${newUserId}/balance`);
@@ -523,7 +523,7 @@ test.describe('Betting System E2E Tests', () => {
       }
     });
     const user2Data = await user2Response.json();
-    const user2Id = user2Data.id;
+    const user2Id = user2Data.user.id;
 
     const user3Response = await request.post(`${API_URL}/api/users/register`, {
       data: {
@@ -533,7 +533,7 @@ test.describe('Betting System E2E Tests', () => {
       }
     });
     const user3Data = await user3Response.json();
-    const user3Id = user3Data.id;
+    const user3Id = user3Data.user.id;
 
     // Place bets from different users
     await request.post(`${API_URL}/api/bets`, {
@@ -664,7 +664,7 @@ test.describe('Betting System E2E Tests', () => {
     });
 
     const userData = await registerResponse.json();
-    const newUserId = userData.id;
+    const newUserId = userData.user.id;
 
     // Get history
     const historyResponse = await request.get(`${API_URL}/api/bets/user/${newUserId}/history`);

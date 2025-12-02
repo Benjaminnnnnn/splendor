@@ -55,14 +55,14 @@ export class BettingService {
     // This would require checking game state from GameService
     // For now, we'll assume the game is valid
 
-    // Check if user already has a bet on this specific player in this game
+    // Check if user already has a bet on this game
     const existingBet = this.db.get(
-      'SELECT id FROM bets WHERE game_id = ? AND user_id = ? AND player_id = ? AND status = ?',
-      [request.gameId, userId, request.playerId, BetStatus.PENDING]
+      'SELECT id FROM bets WHERE game_id = ? AND user_id = ? AND status = ?',
+      [request.gameId, userId, BetStatus.PENDING]
     );
 
     if (existingBet) {
-      throw new Error('You already have an active bet on this player');
+      throw new Error('You already have an active bet on this game');
     }
 
     // Calculate odds based on current betting distribution
