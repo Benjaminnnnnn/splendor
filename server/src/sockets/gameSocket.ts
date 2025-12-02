@@ -3,6 +3,7 @@ import path from 'path';
 import { Server, Socket } from 'socket.io';
 import { GameService } from '../services/gameService';
 import { BettingService } from '../services/bettingService';
+import { ChatSocketHandler } from './chatSocket';
 
 // Create a simple file logger for socket events
 const logsDir = path.join(__dirname, '../../logs');
@@ -21,6 +22,7 @@ export class GameSocketHandler {
   private io: Server;
   private gameService: GameService;
   private bettingService: BettingService;
+  private chatSocketHandler?: ChatSocketHandler;
 
   constructor(io: Server, gameService: GameService) {
     this.io = io;
@@ -28,10 +30,19 @@ export class GameSocketHandler {
     this.bettingService = new BettingService();
   }
 
+  setChatSocketHandler(chatSocketHandler: ChatSocketHandler) {
+    this.chatSocketHandler = chatSocketHandler;
+  }
+
   initialize() {
     this.io.on('connection', (socket: Socket) => {
       console.log(`Client connected: ${socket.id}`);
       logToFile(`Client connected: ${socket.id}`);
+      
+      // Initialize chat handlers for this socket
+      if (this.chatSocketHandler) {
+        this.chatSocketHandler.initializeForSocket(socket);
+      }
 
       socket.on('join-game', async (data) => {
         try {
