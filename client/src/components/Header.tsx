@@ -92,22 +92,18 @@ const Header: React.FC<HeaderProps> = ({ gameTitle = 'Splendor', onTitleClick })
                 </Button>
               )}
               
-              <Box
+              <Button
+                color="inherit"
+                startIcon={<AccountCircle />}
+                onClick={() => navigate('/profile')}
                 sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  px: 2,
-                  py: 0.5,
-                  borderRadius: 1,
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  },
                 }}
               >
-                <AccountCircle />
-                <Typography variant="body1" sx={{ color: 'white' }}>
-                  {user.username}
-                </Typography>
-              </Box>
+                {user.username}
+              </Button>
 
               <Button
                 color="inherit"

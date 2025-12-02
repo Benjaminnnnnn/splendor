@@ -68,6 +68,40 @@ export interface GameStateDTO {
   updatedAt: string;
 }
 
+// Achievements DTOs
+import type { Comparator, UnlockType } from '../../shared/types/game';
+
+export type { Comparator, UnlockType };
+
+export interface AchievementDto {
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  icon?: string;
+  unlockType: UnlockType;
+  sortOrder?: number;
+  unlockedAt?: number;
+  progressValue?: number;
+}
+
+export interface AchievementsResponse {
+  unlocked: AchievementDto[];
+  locked: AchievementDto[];
+}
+
+// DB row type for achievements to support mappers without leaking service internals
+export interface AchievementRecord {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  icon?: string | null;
+  unlock_type: UnlockType;
+  sort_order?: number;
+}
+
 // Request DTOs
 export interface CreateGameRequestDTO {
   playerName: string;

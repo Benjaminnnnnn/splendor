@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -15,10 +15,12 @@ import { Game, GameState } from '../../../shared/types/game';
 import { gameService } from '../services/gameService';
 import { aiService } from '../services/aiService';
 import { socketService } from '../services/socketService';
+import { userServiceClient } from '../services/userServiceClient';
 import GameBoard from '../components/GameBoard';
 import PlayerArea from '../components/PlayerArea';
 import { BettingPanel } from '../components/BettingPanel';
 import { GameBettingStats, Bet } from '../../../shared/types/betting';
+import { ChatPanel } from '../components/ChatPanel';
 import { colors, borderRadius } from '../theme';
 
 const GamePage: React.FC = () => {
@@ -32,6 +34,7 @@ const GamePage: React.FC = () => {
   const [endGameDialogOpen, setEndGameDialogOpen] = useState(false);
   const [isEndingGame, setIsEndingGame] = useState(false);
   const [gameTerminatedDialog, setGameTerminatedDialog] = useState(false);
+  const achievementsEvaluatedRef = useRef(false);
   const [aiRecommendation, setAiRecommendation] = useState<string>('');
   const [isLoadingRecommendation, setIsLoadingRecommendation] = useState(false);
   
@@ -129,6 +132,31 @@ const GamePage: React.FC = () => {
     }
   }, [game, showGameOverDialog]);
 
+  // Evaluate achievements for any logged-in players once the game finishes.
+  useEffect(() => {
+    if (!game || game.state !== GameState.FINISHED || achievementsEvaluatedRef.current) return;
+
+    const userIds = Array.from(
+      new Set(
+        game.players
+          .map((p) => p.userId)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+
+    if (userIds.length === 0) return;
+    achievementsEvaluatedRef.current = true;
+
+    const evaluateAll = async () => {
+      try {
+        await Promise.allSettled(userIds.map((id) => userServiceClient.evaluateUserAchievements(id)));
+      } catch (error) {
+        console.error('Failed to evaluate achievements after game end', error);
+      }
+    };
+
+    evaluateAll();
+  }, [game]);
   // Fetch AI recommendation when it's the current player's turn
   useEffect(() => {
     const fetchRecommendation = async () => {
@@ -319,6 +347,16 @@ const GamePage: React.FC = () => {
         }
       }}
     >
+
+            {/* Chat Panel */}
+      <ChatPanel 
+        gameId={gameId}
+        currentPlayerId={currentPlayer || undefined}
+        currentPlayerName={game.players.find(p => p.id === currentPlayer)?.name || undefined}
+        onlineUsers={game.players.map(p => ({ id: p.id, username: p.name }))}
+      />
+
+
       {/* Main Game Area */}
       <Box sx={{ minWidth: 0 }}>
         <GameBoard
