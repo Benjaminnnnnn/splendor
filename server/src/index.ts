@@ -1,24 +1,41 @@
-import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import fs from 'fs';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
 import dotenv from 'dotenv';
+import express from 'express';
+import fs from 'fs';
+import helmet from 'helmet';
+import { createServer } from 'http';
+import morgan from 'morgan';
 import path from 'path';
+import { Server } from 'socket.io';
+import { syncAchievementCatalog } from './data/achievementsCatalog';
+import achievementRoutes from './routes/achievementRoutes';
 import gameRoutes from './routes/gameRoutes';
-import userRoutes from './routes/userRoutes';
 import lobbyRoutes from './routes/lobbyRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+
+import userRoutes from './routes/userRoutes';
+import chatRoutes from './routes/chatRoutes';
 import aiRoutes from './routes/aiRoutes';
+import bettingRoutes from './routes/bettingRoutes';
 import { GameSocketHandler } from './sockets/gameSocket';
+import { ChatSocketHandler } from './sockets/chatSocket';
 import { GameService } from './services/gameService';
+import { ChatService } from './services/chatService';
+import { FriendshipService } from './services/friendshipService';
+import { ChatRepository } from './domain/ChatRepository';
+import { SocketManager } from './domain/SocketManager';
+import { FriendshipRepository } from './domain/FriendshipRepository';
 
 dotenv.config();
 
 // Create a shared GameService instance
 const gameService = new GameService();
+// Create chat infrastructure
+const chatRepository = new ChatRepository();
+const socketManager = new SocketManager();
+const friendshipRepository = new FriendshipRepository();
+const friendshipService = new FriendshipService(friendshipRepository);
+const chatService = new ChatService(chatRepository, socketManager, friendshipService);
 
 // Enhanced logging utility
 const log = {
@@ -90,10 +107,13 @@ app.use('/docs', express.static(docsPath));
 
 // Routes
 app.use('/api/games', gameRoutes(gameService));
+app.use('/api/users', achievementRoutes());
 app.use('/api/users', userRoutes());
 app.use('/api/lobbies', lobbyRoutes());
 app.use('/api/notifications', notificationRoutes());
 app.use('/api/ai', aiRoutes(gameService));
+app.use('/api/bets', bettingRoutes);
+app.use('/api/chat', chatRoutes(chatService, friendshipService));
 
 // API Documentation endpoint
 app.get('/api-spec', (req, res) => {
@@ -106,8 +126,19 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Seed achievements catalog (idempotent on code)
+syncAchievementCatalog();
+
 // Socket.IO handling
 const gameSocketHandler = new GameSocketHandler(io, gameService);
+const chatSocketHandler = new ChatSocketHandler(io, chatService);
+
+// Store io and chatService in app for access in controllers
+app.set('io', io);
+app.set('chatService', chatService);
+
+// Wire up chat handler to game socket handler
+gameSocketHandler.setChatSocketHandler(chatSocketHandler);
 gameSocketHandler.initialize();
 
 // Error handling middleware
