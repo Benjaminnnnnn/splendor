@@ -96,6 +96,7 @@ export class SqliteAchievementRepository implements AchievementRepository {
       fastest_win_time: statsRow.fastest_win_time,
       highest_prestige_score: statsRow.highest_prestige_score,
       favorite_gem_type: statsRow.favorite_gem_type,
+      virtual_currency: statsRow.virtual_currency || 1000,
       created_at: new Date(statsRow.created_at),
       updated_at: new Date(statsRow.updated_at),
     };
