@@ -13,6 +13,7 @@ import { configDefaults } from 'vitest/config';
 import { CARD_DATA } from '../data/cards';
 import { NOBLE_DATA } from '../data/nobles';
 import { NotificationService } from './notificationService';
+import { BettingService } from './bettingService';
 
 export interface GameJoinResponse {
   game: GameStateDTO;
@@ -36,9 +37,11 @@ export class GameService {
   private gameStartTimes: Map<string, Date> = new Map();
   private inviteCodeToGameId: Map<string, string> = new Map();
   private notificationService: NotificationService;
+  private bettingService: BettingService;
 
   constructor() {
     this.notificationService = new NotificationService();
+    this.bettingService = new BettingService();
   }
 
   async createGame(request: CreateGameRequest): Promise<GameJoinResponse> {
@@ -277,8 +280,26 @@ export class GameService {
       // Convert to DTO for stats service (which still uses old types)
       const gameDTO = DomainToDTOMapper.mapGame(game);
 
-      // Notify all players about game ending
+      // Settle bets if there's a winner
       const winner = game.getWinner();
+      if (winner) {
+        try {
+          await this.bettingService.settleBets(game.id, winner.id);
+          console.log(`[GameService] Settled bets for game ${game.id}, winner: ${winner.name}`);
+        } catch (error) {
+          console.error(`Failed to settle bets for game ${game.id}:`, error);
+        }
+      } else {
+        // If game was terminated without a winner, cancel all bets
+        try {
+          await this.bettingService.cancelBets(game.id);
+          console.log(`[GameService] Cancelled bets for terminated game ${game.id}`);
+        } catch (error) {
+          console.error(`Failed to cancel bets for game ${game.id}:`, error);
+        }
+      }
+
+      // Notify all players about game ending
       const players = game.getPlayers();
       for (const player of players) {
         if (player.userId) {

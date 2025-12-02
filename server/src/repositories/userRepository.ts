@@ -123,6 +123,7 @@ export class SqliteUserRepository implements UserRepository {
       fastest_win_time: statsRow.fastest_win_time,
       highest_prestige_score: statsRow.highest_prestige_score,
       favorite_gem_type: statsRow.favorite_gem_type,
+      virtual_currency: statsRow.virtual_currency || 1000,
       created_at: new Date(statsRow.created_at),
       updated_at: new Date(statsRow.updated_at),
     };
@@ -190,6 +191,7 @@ export class SqliteUserRepository implements UserRepository {
       fastest_win_time: newFastestWin,
       highest_prestige_score: newHighestScore,
       favorite_gem_type: favoriteGem,
+      virtual_currency: currentStats.virtual_currency,
       created_at: currentStats.created_at,
       updated_at: new Date(now),
     };
@@ -201,7 +203,7 @@ export class SqliteUserRepository implements UserRepository {
         u.id, u.username, u.email, u.created_at, u.last_login,
         s.id as stats_id, s.user_id, s.games_played, s.games_won,
         s.total_prestige_points, s.total_cards_purchased, s.total_nobles_acquired,
-        s.fastest_win_time, s.highest_prestige_score, s.favorite_gem_type,
+        s.fastest_win_time, s.highest_prestige_score, s.favorite_gem_type, s.virtual_currency,
         s.created_at as stats_created_at, s.updated_at as stats_updated_at
       FROM users u
       JOIN user_stats s ON u.id = s.user_id
@@ -229,6 +231,7 @@ export class SqliteUserRepository implements UserRepository {
         fastest_win_time: row.fastest_win_time,
         highest_prestige_score: row.highest_prestige_score,
         favorite_gem_type: row.favorite_gem_type,
+        virtual_currency: row.virtual_currency || 1000,
         created_at: new Date(row.stats_created_at),
         updated_at: new Date(row.stats_updated_at),
       },
