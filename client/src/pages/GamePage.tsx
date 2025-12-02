@@ -108,6 +108,23 @@ const GamePage: React.FC = () => {
     };
   }, [gameId]);
 
+  // Auto-refresh betting stats every 3 seconds for real-time odds updates in betting panel
+  useEffect(() => {
+    if (!gameId || !currentPlayer) return;
+
+    // Fetch immediately on mount
+    fetchBettingStats();
+
+    // Then set up interval for continuous updates
+    const bettingStatsInterval = setInterval(() => {
+      fetchBettingStats();
+    }, 3000);
+
+    return () => {
+      clearInterval(bettingStatsInterval);
+    };
+  }, [gameId, currentPlayer]);
+
   // Check for game completion
   useEffect(() => {
     if (game && game.state === GameState.FINISHED && !showGameOverDialog) {
@@ -231,12 +248,14 @@ const GamePage: React.FC = () => {
   };
 
   const fetchBettingStats = async () => {
-    if (!gameId || !currentPlayer) return;
+    if (!gameId) return;
 
     try {
+      console.log('[GamePage] Fetching betting stats for game:', gameId);
       const statsResponse = await fetch(`http://localhost:3001/api/bets/game/${gameId}/stats`);
       if (statsResponse.ok) {
         const stats = await statsResponse.json();
+        console.log('[GamePage] Betting stats updated:', stats);
         setBettingStats(stats);
       }
     } catch (error) {

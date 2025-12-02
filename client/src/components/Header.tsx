@@ -1,7 +1,7 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
-import { AccountCircle, Logout, PersonAdd, Login, EmojiEvents } from '@mui/icons-material';
+import { AccountCircle, Logout, PersonAdd, Login, EmojiEvents, Casino } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import NotificationBell from './NotificationBell';
 
@@ -13,6 +13,10 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ gameTitle = 'Splendor', onTitleClick }) => {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Check if user is currently in a game
+  const isInGame = location.pathname.startsWith('/game/');
 
   const handleLogout = () => {
     logout();
@@ -71,6 +75,22 @@ const Header: React.FC<HeaderProps> = ({ gameTitle = 'Splendor', onTitleClick })
               >
                 Leaderboard
               </Button>
+
+              {/* Betting button - only show when not in a game */}
+              {!isInGame && (
+                <Button
+                  color="inherit"
+                  startIcon={<Casino />}
+                  onClick={() => navigate('/betting')}
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                    },
+                  }}
+                >
+                  Betting
+                </Button>
+              )}
               
               <Button
                 color="inherit"

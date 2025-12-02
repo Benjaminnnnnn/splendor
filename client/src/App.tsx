@@ -10,6 +10,7 @@ import LeaderboardPage from './pages/LeaderboardPage';
 import GamePage from './pages/GamePage';
 import LobbyPage from './pages/LobbyPage';
 import InvitePage from './pages/InvitePage';
+import BettingPage from './pages/BettingPage';
 import ProfilePage from './pages/ProfilePage';
 import RequireAuth from './components/RequireAuth';
 
@@ -38,6 +39,7 @@ const App: React.FC = () => {
             <Route path="/" element={<HomePage />} />
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/betting" element={<BettingPage />} />
             <Route
               path="/profile"
               element={
