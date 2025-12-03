@@ -1,0 +1,1 @@
+We completed the project quite early. Most of our AI conversations were not preserved until we noticed the project requirements to save the AI conversations. We were able to retreive some prompts that we used to generate our services and an overall `code-structure-prompts.txt` to keep our codebase clean.

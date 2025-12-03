@@ -1,0 +1,54 @@
+General Engineering Instructions
+Produce code that is clean, modular, readable, and production-quality.
+Follow modern best practices and maintain strong separation of concerns.
+
+Code Quality Requirements
+Write idiomatic, modern TypeScript.
+Use clear naming, self-explanatory variable and function names.
+Prefer pure functions, predictable state transitions, and minimal side effects.
+Organize all code into small, composable modules.
+Ensure all components and hooks have single responsibility.
+
+Architecture & Structure
+Use a feature-based folder structure or domain-driven structure with clean boundaries.
+Use React hooks for lifecycle and side effects.
+Prefer composition over inheritance.
+
+Maintainability Requirements
+Add JSDoc comments for important functions, hooks, utilities, and subsystems.
+Break large components into smaller ones when they exceed ~150 lines.
+Avoid deeply nested logic; extract helpers or custom hooks instead.
+Centralize constants (colors, sizes, environmental settings).
+Provide clear typing for all objects—avoid any.
+
+Extensibility Requirements
+Provide clean interfaces and types for reusable modules.
+Use dependency injection where relevant for logic-heavy modules.
+Build subsystems as plug-and-play modules with minimal coupling.
+Ensure new files/images/features can be added without modifying core logic.
+
+Performance Requirements
+Write efficient rendering logic—avoid unnecessary React re-renders.
+Use React.memo, useMemo, useCallback where appropriate.
+
+Error Handling & Stability
+Add meaningful error boundaries in React.
+Validate inputs and provide safe fallbacks.
+Use try/catch for async operations.
+Provide friendly console warnings for developers when unexpected states occur.
+
+Documentation in Output
+Explain the architecture.
+Explain key design decisions.
+Include instructions for setup, running, and extending the project.
+Provide comments where decisions are nontrivial.
+
+Testing-Ready Design
+Write code that is easy to test (side-effect isolation, pure logic extraction).
+Avoid tightly coupling UI and logic.
+Provide mockable interfaces for major subsystems.
+
+Format Requirements
+Use consistent formatting (Prettier-style).
+Follow standard code style conventions.
+No dead code, commented-out code, or console logs (unless for debug mode).
