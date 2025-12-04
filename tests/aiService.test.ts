@@ -291,6 +291,204 @@ describe("AIService", () => {
     });
   });
 
+  describe("Validation overrides", () => {
+    it("should override when player already has 10 tokens and AI suggests take_tokens", async () => {
+      const mockOpenAI = {
+        sendMessage: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            action: "take_tokens",
+            reasoning: "Take more tokens",
+            details: { tokens: { diamond: 1, sapphire: 1, emerald: 1 } },
+            confidenceScore: 9,
+          })
+        ),
+      };
+
+      const gameWithMaxTokens = {
+        ...mockGame,
+        players: [
+          {
+            ...mockGame.players[0],
+            tokens: { diamond: 3, sapphire: 3, emerald: 2, ruby: 2, onyx: 0, gold: 0 }, // 10 tokens
+          },
+          mockGame.players[1],
+        ],
+      };
+
+      mockGameService.getGame = vi.fn().mockResolvedValue(gameWithMaxTokens);
+      (aiService as any).openAIProvider = mockOpenAI;
+
+      const result = await aiService.getGameRecommendation("game-123", "player-1");
+      const recommendation = JSON.parse(result);
+
+      expect(recommendation.action).toBe("any");
+      expect(recommendation.reasoning).toContain("10 tokens");
+    });
+
+    it("should override when AI suggests taking more than 3 tokens in one turn", async () => {
+      const mockOpenAI = {
+        sendMessage: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            action: "take_tokens",
+            reasoning: "Grab everything",
+            details: { tokens: { diamond: 2, sapphire: 2, emerald: 0 } }, // 4 total
+            confidenceScore: 6,
+          })
+        ),
+      };
+
+      (aiService as any).openAIProvider = mockOpenAI;
+
+      const result = await aiService.getGameRecommendation("game-123", "player-1");
+      const recommendation = JSON.parse(result);
+
+      expect(recommendation.action).toBe("any");
+      expect(recommendation.confidenceScore).toBe(0);
+    });
+
+    it("should override when AI suggests taking two different colors", async () => {
+      const mockOpenAI = {
+        sendMessage: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            action: "take_tokens",
+            reasoning: "Two colors",
+            details: { tokens: { diamond: 1, sapphire: 1 } }, // invalid pattern for 2 tokens
+            confidenceScore: 5,
+          })
+        ),
+      };
+
+      (aiService as any).openAIProvider = mockOpenAI;
+
+      const result = await aiService.getGameRecommendation("game-123", "player-1");
+      const recommendation = JSON.parse(result);
+
+      expect(recommendation.action).toBe("any");
+      expect(recommendation.confidenceScore).toBe(0);
+    });
+
+    it("should override when AI suggests taking only one token", async () => {
+      const mockOpenAI = {
+        sendMessage: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            action: "take_tokens",
+            reasoning: "Just one",
+            details: { tokens: { ruby: 1 } },
+            confidenceScore: 4,
+          })
+        ),
+      };
+
+      (aiService as any).openAIProvider = mockOpenAI;
+
+      const result = await aiService.getGameRecommendation("game-123", "player-1");
+      const recommendation = JSON.parse(result);
+
+      expect(recommendation.action).toBe("any");
+      expect(recommendation.confidenceScore).toBe(0);
+    });
+
+    it("should override when AI suggests tokens that push total above 10", async () => {
+      const mockOpenAI = {
+        sendMessage: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            action: "take_tokens",
+            reasoning: "Go over the limit",
+            details: { tokens: { diamond: 2 } },
+            confidenceScore: 5,
+          })
+        ),
+      };
+
+      const gameWithNineTokens = {
+        ...mockGame,
+        players: [
+          {
+            ...mockGame.players[0],
+            tokens: { diamond: 4, sapphire: 3, emerald: 2, ruby: 0, onyx: 0, gold: 0 }, // 9 tokens
+          },
+          mockGame.players[1],
+        ],
+      };
+
+      mockGameService.getGame = vi.fn().mockResolvedValue(gameWithNineTokens);
+      (aiService as any).openAIProvider = mockOpenAI;
+
+      const result = await aiService.getGameRecommendation("game-123", "player-1");
+      const recommendation = JSON.parse(result);
+
+      expect(recommendation.action).toBe("any");
+      expect(recommendation.confidenceScore).toBe(0);
+    });
+
+    it("should override when reserving with 3 reserved cards already", async () => {
+      const mockOpenAI = {
+        sendMessage: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            action: "reserve_card",
+            reasoning: "Reserve again",
+            details: { cardId: "another-card" },
+            confidenceScore: 6,
+          })
+        ),
+      };
+
+      const gameWithThreeReserved = {
+        ...mockGame,
+        players: [
+          {
+            ...mockGame.players[0],
+            reservedCards: [
+              { id: "r1" },
+              { id: "r2" },
+              { id: "r3" },
+            ],
+          },
+          mockGame.players[1],
+        ],
+      };
+
+      mockGameService.getGame = vi.fn().mockResolvedValue(gameWithThreeReserved);
+      (aiService as any).openAIProvider = mockOpenAI;
+
+      const result = await aiService.getGameRecommendation("game-123", "player-1");
+      const recommendation = JSON.parse(result);
+
+      expect(recommendation.action).toBe("any");
+      expect(recommendation.confidenceScore).toBe(0);
+    });
+
+    it("should return error response when OpenAI returns invalid JSON", async () => {
+      const mockOpenAI = {
+        sendMessage: vi.fn().mockResolvedValue("not-json"),
+      };
+
+      (aiService as any).openAIProvider = mockOpenAI;
+
+      const result = await aiService.getGameRecommendation("game-123", "player-1");
+      const recommendation = JSON.parse(result);
+
+      expect(recommendation.action).toBe("any");
+      expect(recommendation.reasoning).toContain("Unable to get AI recommendation");
+      expect(recommendation.confidenceScore).toBe(0);
+    });
+
+    it("should return error response when OpenAI throws", async () => {
+      const mockOpenAI = {
+        sendMessage: vi.fn().mockRejectedValue(new Error("API failure")),
+      };
+
+      (aiService as any).openAIProvider = mockOpenAI;
+
+      const result = await aiService.getGameRecommendation("game-123", "player-1");
+      const recommendation = JSON.parse(result);
+
+      expect(recommendation.action).toBe("any");
+      expect(recommendation.reasoning).toContain("Unable to get AI recommendation");
+      expect(recommendation.confidenceScore).toBe(0);
+    });
+  });
+
   describe("Game state analysis", () => {
     it("should include current player state in prompt", async () => {
       const mockOpenAI = {
