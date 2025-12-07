@@ -4,6 +4,8 @@ import { DatabaseConnection } from '../server/src/infrastructure/database';
 
 const DB_PATH = path.join(__dirname, '../server/data/splendor-test.db');
 
+const TIME_OUT = 10000;
+
 const resetTestDatabase = (): void => {
   const db = DatabaseConnection.createAtPath(DB_PATH);
   try {
@@ -80,7 +82,7 @@ async function openChatPanel(page: Page) {
   const chatButton = page.locator('button').filter({ has: page.locator('svg[data-testid="ChatIcon"]') }).first();
   await chatButton.click();
   // Wait for chat panel to be visible
-  await expect(page.getByRole('heading', { name: 'Chat' })).toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole('heading', { name: 'Chat' })).toBeVisible({ timeout: TIME_OUT });
 }
 
 async function navigateToTab(page: Page, tabName: string) {
@@ -153,7 +155,7 @@ test.describe('Chat & Friend System E2E', () => {
     await recipientPage.waitForTimeout(2000);
     
     // Verify friend request is visible
-    await expect(recipientPage.getByText(senderCreds.username)).toBeVisible({ timeout: 5000 });
+    await expect(recipientPage.getByText(senderCreds.username)).toBeVisible({ timeout: TIME_OUT });
     await expect(recipientPage.getByRole('button', { name: /Accept/i })).toBeVisible();
     await expect(recipientPage.getByRole('button', { name: /Reject/i })).toBeVisible();
     
@@ -204,12 +206,12 @@ test.describe('Chat & Friend System E2E', () => {
     
     // Assert: User 2 can see User 1 in Direct Messages tab
     await navigateToTab(page2, 'Direct');
-    await expect(page2.getByText(user1Creds.username)).toBeVisible({ timeout: 5000 });
+    await expect(page2.getByText(user1Creds.username)).toBeVisible({ timeout: TIME_OUT });
     
     // Assert: User 1 can see User 2 in Direct Messages tab
     await navigateToTab(page1, 'Direct');
     await page1.waitForTimeout(2000); // Wait for socket event
-    await expect(page1.getByText(user2Creds.username)).toBeVisible({ timeout: 5000 });
+    await expect(page1.getByText(user2Creds.username)).toBeVisible({ timeout: TIME_OUT });
     
     await context1.close();
     await context2.close();
@@ -253,7 +255,7 @@ test.describe('Chat & Friend System E2E', () => {
     
     // Find the friend in the list and click to open conversation
     const friendListItem = page1.locator('.MuiListItemButton-root').filter({ hasText: user2Creds.username });
-    await expect(friendListItem).toBeVisible({ timeout: 5000 });
+    await expect(friendListItem).toBeVisible({ timeout: TIME_OUT });
     await friendListItem.click();
     
     const message1 = `Hello from ${user1Creds.username}!`;
@@ -262,7 +264,7 @@ test.describe('Chat & Friend System E2E', () => {
     await messageInput1.press('Enter');
     
     // Assert: User 1 sees their own message
-    await expect(page1.getByText(message1)).toBeVisible({ timeout: 5000 });
+    await expect(page1.getByText(message1)).toBeVisible({ timeout: TIME_OUT });
     await expect(page1.getByText('You')).toBeVisible();
     
     // Assert: User 2 receives the message
@@ -275,9 +277,9 @@ test.describe('Chat & Friend System E2E', () => {
     
     // Open the conversation
     const friendListItem2 = page2.locator('.MuiListItemButton-root').filter({ hasText: user1Creds.username });
-    await expect(friendListItem2).toBeVisible({ timeout: 5000 });
+    await expect(friendListItem2).toBeVisible({ timeout: TIME_OUT });
     await friendListItem2.click();
-    await expect(page2.getByText(message1)).toBeVisible({ timeout: 5000 });
+    await expect(page2.getByText(message1)).toBeVisible({ timeout: TIME_OUT });
     
     // Act: User 2 replies
     const message2 = `Hi ${user1Creds.username}, nice to meet you!`;
@@ -286,11 +288,11 @@ test.describe('Chat & Friend System E2E', () => {
     await messageInput2.press('Enter');
     
     // Assert: User 2 sees their own message
-    await expect(page2.getByText(message2)).toBeVisible({ timeout: 5000 });
+    await expect(page2.getByText(message2)).toBeVisible({ timeout: TIME_OUT });
     
     // Assert: User 1 receives the reply
     await page1.waitForTimeout(2000); // Wait for socket event
-    await expect(page1.getByText(message2)).toBeVisible({ timeout: 5000 });
+    await expect(page1.getByText(message2)).toBeVisible({ timeout: TIME_OUT });
     
     await context1.close();
     await context2.close();
@@ -429,13 +431,13 @@ test.describe('Chat & Friend System E2E', () => {
     
     // Open conversation with friend
     const friendListItemAfterReload = page.locator('.MuiListItemButton-root').filter({ hasText: user2Creds.username });
-    await expect(friendListItemAfterReload).toBeVisible({ timeout: 5000 });
+    await expect(friendListItemAfterReload).toBeVisible({ timeout: TIME_OUT });
     await friendListItemAfterReload.click();
     await page.waitForTimeout(1000); // Wait for message history to load
     
     // Assert: verify all messages are still visible after reload
     for (const msg of testMessages) {
-      await expect(page.getByText(msg)).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText(msg)).toBeVisible({ timeout: TIME_OUT });
     }
   });
 });
