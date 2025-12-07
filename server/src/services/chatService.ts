@@ -1,5 +1,5 @@
 import { ChatMessage, MessageType } from '../../../shared/types/chat';
-import { ChatRepository } from '../domain/ChatRepository';
+import { IChatRepository } from '../domain/ChatRepository';
 import { SocketManager } from '../domain/SocketManager';
 import { FriendshipService } from './friendshipService';
 import { v4 as uuidv4 } from 'uuid';
@@ -8,12 +8,12 @@ import { v4 as uuidv4 } from 'uuid';
  * Chat service layer - handles business logic for chat operations
  */
 export class ChatService {
-  private chatRepository: ChatRepository;
+  private chatRepository: IChatRepository;
   private socketManager: SocketManager;
   private friendshipService: FriendshipService;
 
   constructor(
-    chatRepository: ChatRepository,
+    chatRepository: IChatRepository,
     socketManager: SocketManager,
     friendshipService: FriendshipService
   ) {
@@ -52,14 +52,10 @@ export class ChatService {
     recipientId: string,
     content: string
   ): ChatMessage {
-    console.log(`ChatService: Attempting to send message from ${senderId} to ${recipientId}`);
-    
     // Check if users are friends before allowing message
     const areFriends = this.friendshipService.areFriends(senderId, recipientId);
-    console.log(`ChatService: Are friends? ${areFriends}`);
     
     if (!areFriends) {
-      console.error(`ChatService: Message blocked - ${senderId} and ${recipientId} are not friends`);
       throw new Error('Can only send messages to friends');
     }
 
@@ -105,12 +101,5 @@ export class ChatService {
    */
   getDirectMessageHistory(userId: string, peerId: string, limit: number = 50): ChatMessage[] {
     return this.chatRepository.getDirectMessageHistory(userId, peerId, limit);
-  }
-
-  /**
-   * Get all conversations for a user
-   */
-  getUserConversations(userId: string): Map<string, ChatMessage[]> {
-    return this.chatRepository.getUserConversations(userId);
   }
 }

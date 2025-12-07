@@ -1,15 +1,22 @@
 import { ChatMessage, MessageType } from '../../../shared/types/chat';
 import { DatabaseConnection } from '../infrastructure/database';
 
+export interface IChatRepository {
+  saveDirectMessage(message: ChatMessage): ChatMessage;
+  getDirectMessageHistory(userId1: string, userId2: string, limit?: number): ChatMessage[];
+  clear(): void;
+}
+
 /**
  * Database-backed repository for chat messages
  * Stores messages in SQLite for persistence
  */
-export class ChatRepository {
+export class ChatRepository implements IChatRepository {
   private db: DatabaseConnection;
 
-  constructor() {
-    this.db = DatabaseConnection.getInstance();
+  constructor(db?: DatabaseConnection) {
+    // Allow dependency injection of the DB connection; default to singleton
+    this.db = db ?? DatabaseConnection.getInstance();
   }
 
   /**
@@ -65,44 +72,6 @@ export class ChatRepository {
       content: row.content,
       timestamp: new Date(row.timestamp),
     }));
-  }
-
-  /**
-   * Get all conversations for a user (for friend list display)
-   */
-  getUserConversations(userId: string): Map<string, ChatMessage[]> {
-    const conversations = new Map<string, ChatMessage[]>();
-    
-    // Get all messages where user is sender or recipient
-    const rows = this.db.query(
-      `SELECT id, sender_id, sender_name, recipient_id, game_id, type, content, timestamp
-       FROM chat_messages
-       WHERE type = ? AND (sender_id = ? OR recipient_id = ?)
-       ORDER BY timestamp ASC`,
-      [MessageType.DIRECT, userId, userId]
-    );
-
-    // Group messages by conversation
-    for (const row of rows as any[]) {
-      const otherUserId = row.sender_id === userId ? row.recipient_id : row.sender_id;
-      
-      if (!conversations.has(otherUserId)) {
-        conversations.set(otherUserId, []);
-      }
-
-      conversations.get(otherUserId)!.push({
-        id: row.id,
-        senderId: row.sender_id,
-        senderName: row.sender_name,
-        recipientId: row.recipient_id,
-        gameId: row.game_id,
-        type: row.type as MessageType,
-        content: row.content,
-        timestamp: new Date(row.timestamp),
-      });
-    }
-    
-    return conversations;
   }
 
   /**

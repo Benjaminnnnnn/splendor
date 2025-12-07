@@ -15,29 +15,26 @@ export class InMemoryFriendshipRepository {
   private friendRequests: Map<string, FriendRequest> = new Map();
 
   /**
-   * Send a friend request
+   * Create a friend request (pure data operation)
    */
-  sendRequest(fromUserId: string, toUserId: string): void {
+  createRequest(fromUserId: string, toUserId: string): void {
     const key = `${fromUserId}:${toUserId}`;
     this.friendRequests.set(key, { fromUserId, toUserId, createdAt: new Date() });
   }
 
   /**
-   * Accept a friend request and create friendship
+   * Get a specific friend request
    */
-  acceptRequest(fromUserId: string, toUserId: string): boolean {
+  getRequest(fromUserId: string, toUserId: string): FriendRequest | null {
     const key = `${fromUserId}:${toUserId}`;
-    if (!this.friendRequests.has(key)) return false;
-    
-    this.friendRequests.delete(key);
-    this.addFriendship(fromUserId, toUserId);
-    return true;
+    return this.friendRequests.get(key) ?? null;
   }
 
   /**
-   * Reject a friend request
+   * Delete a friend request
+   * @returns true if a request was deleted, false if not found
    */
-  rejectRequest(fromUserId: string, toUserId: string): boolean {
+  deleteRequest(fromUserId: string, toUserId: string): boolean {
     const key = `${fromUserId}:${toUserId}`;
     return this.friendRequests.delete(key);
   }
@@ -56,16 +53,9 @@ export class InMemoryFriendshipRepository {
   }
 
   /**
-   * Check if request already exists
+   * Create a friendship between two users (bidirectional)
    */
-  hasRequest(fromUserId: string, toUserId: string): boolean {
-    return this.friendRequests.has(`${fromUserId}:${toUserId}`);
-  }
-
-  /**
-   * Add a friendship between two users (bidirectional)
-   */
-  private addFriendship(userId1: string, userId2: string): void {
+  createFriendship(userId1: string, userId2: string): void {
     console.log(`FriendshipRepository: Adding friendship between ${userId1} and ${userId2}`);
     
     // Initialize sets if they don't exist
@@ -85,11 +75,13 @@ export class InMemoryFriendshipRepository {
   }
 
   /**
-   * Remove a friendship between two users (bidirectional)
+   * Delete a friendship between two users (bidirectional)
+   * @returns true if a friendship was deleted, false if not found
    */
-  removeFriendship(userId1: string, userId2: string): void {
-    this.friendships.get(userId1)?.delete(userId2);
-    this.friendships.get(userId2)?.delete(userId1);
+  deleteFriendship(userId1: string, userId2: string): boolean {
+    const had1 = this.friendships.get(userId1)?.delete(userId2) ?? false;
+    const had2 = this.friendships.get(userId2)?.delete(userId1) ?? false;
+    return had1 || had2;
   }
 
   /**

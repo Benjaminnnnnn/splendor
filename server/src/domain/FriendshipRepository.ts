@@ -6,36 +6,35 @@ export interface FriendRequest {
   createdAt: Date;
 }
 
+export interface IFriendshipRepository {
+  createRequest(fromUserId: string, toUserId: string): void;
+  deleteRequest(fromUserId: string, toUserId: string): boolean;
+  getRequest(fromUserId: string, toUserId: string): FriendRequest | null;
+  getPendingRequests(userId: string): FriendRequest[];
+  createFriendship(userId1: string, userId2: string): void;
+  deleteFriendship(userId1: string, userId2: string): boolean;
+  getFriends(userId: string): string[];
+  areFriends(userId1: string, userId2: string): boolean;
+  getFriendCount(userId: string): number;
+  clear(): void;
+}
+
 /**
  * Database-backed Friendship Repository
  * Manages bidirectional friendships and friend requests using SQLite
  */
-export class FriendshipRepository {
+export class FriendshipRepository implements IFriendshipRepository {
   private db: DatabaseConnection;
 
-  constructor() {
-    this.db = DatabaseConnection.getInstance();
+  constructor(db?: DatabaseConnection) {
+    // Allow dependency injection of the DB connection; default to singleton
+    this.db = db ?? DatabaseConnection.getInstance();
   }
 
   /**
-   * Send a friend request
+   * Create a friend request (pure data operation)
    */
-  sendRequest(fromUserId: string, toUserId: string): void {
-    // Check if already friends
-    if (this.areFriends(fromUserId, toUserId)) {
-      throw new Error('Users are already friends');
-    }
-
-    // Check if request already exists
-    if (this.hasRequest(fromUserId, toUserId)) {
-      throw new Error('Friend request already sent');
-    }
-
-    // Check if reverse request exists (they sent us one)
-    if (this.hasRequest(toUserId, fromUserId)) {
-      throw new Error('Friend request from this user already exists');
-    }
-
+  createRequest(fromUserId: string, toUserId: string): void {
     const createdAt = Date.now();
     this.db.run(
       'INSERT INTO friend_requests (from_user_id, to_user_id, created_at) VALUES (?, ?, ?)',
@@ -44,44 +43,35 @@ export class FriendshipRepository {
   }
 
   /**
-   * Accept a friend request
+   * Get a specific friend request
    */
-  acceptRequest(fromUserId: string, toUserId: string): void {
-    // Verify request exists
-    const request = this.db.get(
-      'SELECT * FROM friend_requests WHERE from_user_id = ? AND to_user_id = ?',
+  getRequest(fromUserId: string, toUserId: string): FriendRequest | null {
+    const row = this.db.get(
+      'SELECT from_user_id, to_user_id, created_at FROM friend_requests WHERE from_user_id = ? AND to_user_id = ?',
       [fromUserId, toUserId]
     );
 
-    if (!request) {
-      throw new Error('Friend request not found');
+    if (!row) {
+      return null;
     }
 
-    // Use transaction to ensure atomicity
-    this.db.transaction(() => {
-      // Delete the request
-      this.db.run(
-        'DELETE FROM friend_requests WHERE from_user_id = ? AND to_user_id = ?',
-        [fromUserId, toUserId]
-      );
-
-      // Add friendship (store both directions for easier querying)
-      this.addFriendship(fromUserId, toUserId);
-    });
+    return {
+      fromUserId: row.from_user_id,
+      toUserId: row.to_user_id,
+      createdAt: new Date(row.created_at),
+    };
   }
 
   /**
-   * Reject a friend request
+   * Delete a friend request
+   * @returns true if a request was deleted, false if not found
    */
-  rejectRequest(fromUserId: string, toUserId: string): void {
+  deleteRequest(fromUserId: string, toUserId: string): boolean {
     const result = this.db.run(
       'DELETE FROM friend_requests WHERE from_user_id = ? AND to_user_id = ?',
       [fromUserId, toUserId]
     );
-
-    if (result.changes === 0) {
-      throw new Error('Friend request not found');
-    }
+    return result.changes > 0;
   }
 
   /**
@@ -100,48 +90,33 @@ export class FriendshipRepository {
     }));
   }
 
-  /**
-   * Check if a friend request exists
-   */
-  hasRequest(fromUserId: string, toUserId: string): boolean {
-    const result = this.db.get(
-      'SELECT 1 FROM friend_requests WHERE from_user_id = ? AND to_user_id = ?',
-      [fromUserId, toUserId]
-    );
-    return !!result;
-  }
+
 
   /**
-   * Add a friendship (private helper, called after accepting request)
+   * Create a friendship (pure data operation)
    */
-  private addFriendship(userId1: string, userId2: string): void {
+  createFriendship(userId1: string, userId2: string): void {
     const createdAt = Date.now();
     // Store in normalized order (smaller userId first)
     const [user1, user2] = [userId1, userId2].sort();
     
-    try {
-      this.db.run(
-        'INSERT INTO friendships (user_id_1, user_id_2, created_at) VALUES (?, ?, ?)',
-        [user1, user2, createdAt]
-      );
-    } catch (error: any) {
-      // UNIQUE constraint violation means already friends
-      if (error.code === 'SQLITE_CONSTRAINT') {
-        return; // Already friends, no error
-      }
-      throw error;
-    }
+    this.db.run(
+      'INSERT INTO friendships (user_id_1, user_id_2, created_at) VALUES (?, ?, ?)',
+      [user1, user2, createdAt]
+    );
   }
 
   /**
-   * Remove a friendship
+   * Delete a friendship
+   * @returns true if a friendship was deleted, false if not found
    */
-  removeFriendship(userId1: string, userId2: string): void {
+  deleteFriendship(userId1: string, userId2: string): boolean {
     const [user1, user2] = [userId1, userId2].sort();
-    this.db.run(
+    const result = this.db.run(
       'DELETE FROM friendships WHERE user_id_1 = ? AND user_id_2 = ?',
       [user1, user2]
     );
+    return result.changes > 0;
   }
 
   /**

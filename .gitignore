@@ -81,6 +81,7 @@ web_modules/
 
 # Database files
 server/data/splendor.db
+server/data/*.db
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

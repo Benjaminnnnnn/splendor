@@ -1,14 +1,36 @@
-import { io, Socket } from 'socket.io-client';
+import { io, Socket, ManagerOptions, SocketOptions } from 'socket.io-client';
 import { Game } from '../../../shared/types/game';
 import { ChatMessage, MessageType, SendMessageRequest } from '../../../shared/types/chat';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
-class SocketService {
+export interface ISocketService {
+  connect(): void;
+  disconnect(): void;
+  registerForChat(userId: string, username: string): void;
+  sendChatMessage(senderId: string, senderName: string, request: SendMessageRequest): void;
+  onChatMessage(callback: (message: ChatMessage) => void): void;
+  onUserTyping(callback: (data: { userId: string, username: string, gameId?: string }) => void): void;
+  on(event: string, callback: (...args: any[]) => void): void;
+  off(event: string, callback?: (...args: any[]) => void): void;
+  isConnected(): boolean;
+  joinGame(gameId: string, playerId: string): void;
+  leaveGame(gameId: string, playerId: string): void;
+  sendGameAction(gameId: string, action: string, payload: any): void;
+}
+
+class SocketService implements ISocketService {
   private socket: Socket | null = null;
   private gameStateCallback: ((game: Game) => void) | null = null;
   private chatMessageCallback: ((message: ChatMessage) => void) | null = null;
   private typingCallback: ((data: { userId: string, username: string, gameId?: string }) => void) | null = null;
+  private readonly socketUrl: string;
+  private readonly ioFactory: (url: string, opts?: Partial<ManagerOptions & SocketOptions>) => Socket;
+
+  constructor(socketUrl: string = SOCKET_URL, ioFactory: (url: string, opts?: Partial<ManagerOptions & SocketOptions>) => Socket = io) {
+    this.socketUrl = socketUrl;
+    this.ioFactory = ioFactory;
+  }
 
   connect(): void {
     if (this.socket?.connected) {
@@ -23,8 +45,8 @@ class SocketService {
       return;
     }
 
-    console.log('SocketService: Creating new socket connection to', SOCKET_URL);
-    this.socket = io(SOCKET_URL, {
+    console.log('SocketService: Creating new socket connection to', this.socketUrl);
+    this.socket = this.ioFactory(this.socketUrl, {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5

@@ -40,7 +40,6 @@ export class FriendshipController {
 
       res.json({ friends: validFriends });
     } catch (error) {
-      console.error('Error fetching friends:', error);
       res.status(500).json({ error: 'Failed to fetch friends' });
     }
   };
@@ -72,9 +71,7 @@ export class FriendshipController {
         return;
       }
 
-      console.log(`FriendshipController: Sending friend request from ${userId} to ${friendId}`);
       this.friendshipService.sendFriendRequest(userId, friendId);
-      console.log(`FriendshipController: Friend request sent successfully`);
 
       // Notify the recipient via socket
       const app = req.app as unknown as { get: (key: string) => unknown };
@@ -82,13 +79,9 @@ export class FriendshipController {
       const chatService = app.get('chatService');
       if (io && chatService) {
         const recipientSocket = (chatService as { getUserSocket: (id: string) => string | undefined }).getUserSocket(friendId);
-        console.log(`FriendshipController: Recipient socket for ${friendId}:`, recipientSocket);
         if (recipientSocket) {
           const sender = await this.userService.getUserById(userId);
-          console.log(`FriendshipController: Emitting friend:request event to socket ${recipientSocket}`);
           (io as { to: (socket: string) => { emit: (event: string, data: unknown) => void } }).to(recipientSocket).emit('friend:request', { userId, username: sender?.username || 'Unknown' });
-        } else {
-          console.log(`FriendshipController: Recipient ${friendId} not connected to socket`);
         }
       }
 
@@ -97,7 +90,6 @@ export class FriendshipController {
         friend: { id: friend.id, username: friend.username }
       });
     } catch (error) {
-      console.error('Error sending friend request:', error);
       res.status(400).json({ error: (error as Error).message });
     }
   };
@@ -144,7 +136,6 @@ export class FriendshipController {
 
       res.status(200).json({ message: 'Friend request accepted' });
     } catch (error) {
-      console.error('Error accepting friend request:', error);
       res.status(400).json({ error: (error as Error).message });
     }
   };
@@ -176,7 +167,6 @@ export class FriendshipController {
       const chatService = app.get('chatService');
       if (io && chatService) {
         const senderSocket = (chatService as { getUserSocket: (id: string) => string | undefined }).getUserSocket(friendId);
-        console.log(`FriendshipController: Notifying sender ${friendId} of rejection, socket:`, senderSocket);
         if (senderSocket) {
           (io as { to: (socket: string) => { emit: (event: string, data: unknown) => void } }).to(senderSocket).emit('friend:request-rejected', { userId });
         }
@@ -184,7 +174,6 @@ export class FriendshipController {
       
       res.status(200).json({ message: 'Friend request rejected' });
     } catch (error) {
-      console.error('Error rejecting friend request:', error);
       res.status(400).json({ error: (error as Error).message });
     }
   };
@@ -241,7 +230,6 @@ export class FriendshipController {
 
       res.json({ message: 'Friendship removed successfully' });
     } catch (error) {
-      console.error('Error removing friend:', error);
       res.status(500).json({ error: 'Failed to remove friendship' });
     }
   };
@@ -258,8 +246,7 @@ export class FriendshipController {
 
       res.json({ areFriends });
     } catch (error) {
-      console.error('Error checking friendship:', error);
-      res.status(500).json({ error: 'Failed to check friendship' });
+      res.status(500).json({ error: 'Failed to check friendship status' });
     }
   };
 }

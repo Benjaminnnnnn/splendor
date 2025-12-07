@@ -1,4 +1,4 @@
-import { FriendshipRepository, FriendRequest } from '../domain/FriendshipRepository';
+import { IFriendshipRepository, FriendRequest } from '../domain/FriendshipRepository';
 
 export interface Friend {
   id: string;
@@ -9,9 +9,9 @@ export interface Friend {
  * Friendship service layer - handles business logic for friend operations
  */
 export class FriendshipService {
-  private friendshipRepository: FriendshipRepository;
+  private friendshipRepository: IFriendshipRepository;
 
-  constructor(friendshipRepository: FriendshipRepository) {
+  constructor(friendshipRepository: IFriendshipRepository) {
     this.friendshipRepository = friendshipRepository;
   }
 
@@ -19,30 +19,52 @@ export class FriendshipService {
    * Send a friend request
    */
   sendFriendRequest(fromUserId: string, toUserId: string): void {
+    // Business logic validations
     if (fromUserId === toUserId) {
       throw new Error('Cannot send friend request to yourself');
     }
+
+    // Check if already friends
     if (this.friendshipRepository.areFriends(fromUserId, toUserId)) {
-      throw new Error('Already friends');
+      throw new Error('Users are already friends');
     }
-    if (this.friendshipRepository.hasRequest(fromUserId, toUserId)) {
+
+    // Check if request already exists
+    if (this.friendshipRepository.getRequest(fromUserId, toUserId)) {
       throw new Error('Friend request already sent');
     }
-    this.friendshipRepository.sendRequest(fromUserId, toUserId);
+
+    // Check if reverse request exists (they sent us one)
+    if (this.friendshipRepository.getRequest(toUserId, fromUserId)) {
+      throw new Error('Friend request from this user already exists');
+    }
+
+    this.friendshipRepository.createRequest(fromUserId, toUserId);
   }
 
   /**
    * Accept a friend request
    */
   acceptFriendRequest(fromUserId: string, toUserId: string): void {
-    this.friendshipRepository.acceptRequest(fromUserId, toUserId);
+    // Verify request exists
+    const request = this.friendshipRepository.getRequest(fromUserId, toUserId);
+    if (!request) {
+      throw new Error('Friend request not found');
+    }
+
+    // Delete the request and create friendship
+    this.friendshipRepository.deleteRequest(fromUserId, toUserId);
+    this.friendshipRepository.createFriendship(fromUserId, toUserId);
   }
 
   /**
    * Reject a friend request
    */
   rejectFriendRequest(fromUserId: string, toUserId: string): void {
-    this.friendshipRepository.rejectRequest(fromUserId, toUserId);
+    const deleted = this.friendshipRepository.deleteRequest(fromUserId, toUserId);
+    if (!deleted) {
+      throw new Error('Friend request not found');
+    }
   }
 
   /**
@@ -56,7 +78,10 @@ export class FriendshipService {
    * Remove a friendship between two users
    */
   removeFriendship(userId1: string, userId2: string): void {
-    this.friendshipRepository.removeFriendship(userId1, userId2);
+    const deleted = this.friendshipRepository.deleteFriendship(userId1, userId2);
+    if (!deleted) {
+      throw new Error('Friendship not found');
+    }
   }
 
   /**

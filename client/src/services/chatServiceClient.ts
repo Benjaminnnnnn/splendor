@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { ChatMessage } from '../../../shared/types/chat';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -14,13 +14,32 @@ export interface FriendRequest {
   createdAt: Date;
 }
 
-class ChatServiceClient {
+export interface IChatServiceClient {
+  getDirectMessageHistory(userId: string, peerId: string, limit?: number): Promise<ChatMessage[]>;
+  getFriends(userId: string): Promise<Friend[]>;
+  addFriend(userId: string, friendId: string): Promise<Friend>;
+  getPendingRequests(userId: string): Promise<FriendRequest[]>;
+  acceptFriendRequest(userId: string, friendId: string): Promise<void>;
+  rejectFriendRequest(userId: string, friendId: string): Promise<void>;
+  removeFriend(userId: string, friendId: string): Promise<void>;
+  checkFriendship(userId: string, friendId: string): Promise<boolean>;
+  getUserInfo(userId: string): Promise<{ id: string; username: string } | null>;
+}
+
+class ChatServiceClient implements IChatServiceClient {
+  private readonly http: AxiosInstance;
+  private readonly baseUrl: string;
+
+  constructor(http: AxiosInstance = axios, baseUrl: string = API_URL) {
+    this.http = http;
+    this.baseUrl = baseUrl;
+  }
   /**
    * Fetch direct message history between current user and another user
    */
   async getDirectMessageHistory(userId: string, peerId: string, limit: number = 50): Promise<ChatMessage[]> {
     try {
-      const response = await axios.get(`${API_URL}/chat/users/${userId}/conversations/${peerId}`, {
+      const response = await this.http.get(`${this.baseUrl}/chat/users/${userId}/conversations/${peerId}`, {
         params: { limit }
       });
       return response.data.messages;
@@ -35,7 +54,7 @@ class ChatServiceClient {
    */
   async getFriends(userId: string): Promise<Friend[]> {
     try {
-      const response = await axios.get(`${API_URL}/chat/users/${userId}/friends`);
+      const response = await this.http.get(`${this.baseUrl}/chat/users/${userId}/friends`);
       return response.data.friends;
     } catch (error) {
       console.error('Error fetching friends:', error);
@@ -50,7 +69,7 @@ class ChatServiceClient {
     try {
       console.log('addFriend: Sending request with userId:', userId, 'friendId:', friendId);
       console.log('addFriend: Token in localStorage:', localStorage.getItem('splendor_token'));
-      const response = await axios.post(`${API_URL}/chat/users/${userId}/friends`, { friendId });
+      const response = await this.http.post(`${this.baseUrl}/chat/users/${userId}/friends`, { friendId });
       console.log('addFriend: Success response:', response.data);
       return response.data.friend;
     } catch (error) {
@@ -64,7 +83,7 @@ class ChatServiceClient {
    */
   async getPendingRequests(userId: string): Promise<FriendRequest[]> {
     try {
-      const response = await axios.get(`${API_URL}/chat/users/${userId}/friends/requests`);
+      const response = await this.http.get(`${this.baseUrl}/chat/users/${userId}/friends/requests`);
       return response.data.requests;
     } catch (error) {
       console.error('Error fetching pending requests:', error);
@@ -77,7 +96,7 @@ class ChatServiceClient {
    */
   async acceptFriendRequest(userId: string, friendId: string): Promise<void> {
     try {
-      await axios.post(`${API_URL}/chat/users/${userId}/friends/accept`, { friendId });
+      await this.http.post(`${this.baseUrl}/chat/users/${userId}/friends/accept`, { friendId });
     } catch (error) {
       console.error('Error accepting friend request:', error);
       throw error;
@@ -89,7 +108,7 @@ class ChatServiceClient {
    */
   async rejectFriendRequest(userId: string, friendId: string): Promise<void> {
     try {
-      await axios.post(`${API_URL}/chat/users/${userId}/friends/reject`, { friendId });
+      await this.http.post(`${this.baseUrl}/chat/users/${userId}/friends/reject`, { friendId });
     } catch (error) {
       console.error('Error rejecting friend request:', error);
       throw error;
@@ -101,7 +120,7 @@ class ChatServiceClient {
    */
   async removeFriend(userId: string, friendId: string): Promise<void> {
     try {
-      await axios.delete(`${API_URL}/chat/users/${userId}/friends/${friendId}`);
+      await this.http.delete(`${this.baseUrl}/chat/users/${userId}/friends/${friendId}`);
     } catch (error) {
       console.error('Error removing friend:', error);
       throw error;
@@ -113,7 +132,7 @@ class ChatServiceClient {
    */
   async checkFriendship(userId: string, friendId: string): Promise<boolean> {
     try {
-      const response = await axios.get(`${API_URL}/chat/users/${userId}/friends/${friendId}/check`);
+      const response = await this.http.get(`${this.baseUrl}/chat/users/${userId}/friends/${friendId}/check`);
       return response.data.areFriends;
     } catch (error) {
       console.error('Error checking friendship:', error);
@@ -126,7 +145,7 @@ class ChatServiceClient {
    */
   async getUserInfo(userId: string): Promise<{ id: string; username: string } | null> {
     try {
-      const response = await axios.get(`${API_URL}/users/${userId}`);
+      const response = await this.http.get(`${this.baseUrl}/users/${userId}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching user info:', error);

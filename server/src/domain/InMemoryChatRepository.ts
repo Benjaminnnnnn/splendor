@@ -73,23 +73,6 @@ export class InMemoryChatRepository {
   }
 
   /**
-   * Get all conversations for a user (for friend list display)
-   */
-  getUserConversations(userId: string): Map<string, ChatMessage[]> {
-    const conversations = new Map<string, ChatMessage[]>();
-    
-    for (const [key, messages] of this.directMessages.entries()) {
-      const [user1, user2] = key.split(':');
-      if (user1 === userId || user2 === userId) {
-        const otherUserId = user1 === userId ? user2 : user1;
-        conversations.set(otherUserId, messages);
-      }
-    }
-    
-    return conversations;
-  }
-
-  /**
    * Clear all data (useful for testing or reset)
    */
   clear(): void {
