@@ -455,5 +455,52 @@ describe('Betting Service Property-Based Tests', () => {
         { numRuns: 200 }
       );
     });
+
+    it('should maintain proportional odds across varying pool sizes', () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 10, max: 100 }),  // basePlayerAmount
+          fc.integer({ min: 2, max: 10 }),    // multiplier for scaling
+          (basePlayerAmount, multiplier) => {
+            // Test that odds scale proportionally when both amounts are multiplied
+            const totalAmount = basePlayerAmount * 4; // 4 players with equal bets
+            const odds1 = calculateOdds(totalAmount, basePlayerAmount);
+            
+            // Scale both amounts by the same factor
+            const scaledTotal = totalAmount * multiplier;
+            const scaledPlayer = basePlayerAmount * multiplier;
+            const odds2 = calculateOdds(scaledTotal, scaledPlayer);
+            
+            // Odds should remain the same (proportional scaling)
+            expect(odds2).toBe(odds1);
+          }
+        ),
+        { numRuns: 500 }
+      );
+    });
+
+    it('should maintain monotonicity when player amount decreases relative to total', () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 100, max: 1000 }), // fixed totalAmount
+          fc.array(
+            fc.integer({ min: 10, max: 90 }),
+            { minLength: 3, maxLength: 10 }
+          ).map(arr => arr.sort((a, b) => b - a)), // descending player amounts
+          (totalAmount, descendingAmounts) => {
+            // Calculate odds for each decreasing player amount
+            const oddsSequence = descendingAmounts.map(playerAmount => 
+              calculateOdds(totalAmount, playerAmount)
+            );
+            
+            // Odds should be non-decreasing (monotonic) as player amount decreases
+            for (let i = 1; i < oddsSequence.length; i++) {
+              expect(oddsSequence[i]).toBeGreaterThanOrEqual(oddsSequence[i - 1]);
+            }
+          }
+        ),
+        { numRuns: 300 }
+      );
+    });
   });
 });

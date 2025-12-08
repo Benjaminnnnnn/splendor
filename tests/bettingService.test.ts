@@ -340,5 +340,21 @@ describe.sequential('BettingService', () => {
         bettingService.addVirtualCurrency(testUserId, -100)
       ).rejects.toThrow('Amount must be positive');
     });
+
+    it('should allow adding virtual currency multiple times', async () => {
+      const initialBalance = await bettingService.getUserBalance(testUserId);
+      
+      await bettingService.addVirtualCurrency(testUserId, 200);
+      await bettingService.addVirtualCurrency(testUserId, 300);
+      
+      const finalBalance = await bettingService.getUserBalance(testUserId);
+      expect(finalBalance).toBe(initialBalance + 500);
+    });
+
+    it('should reject zero amount', async () => {
+      await expect(
+        bettingService.addVirtualCurrency(testUserId, 0)
+      ).rejects.toThrow('Amount must be positive');
+    });
   });
 });
