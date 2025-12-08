@@ -496,5 +496,71 @@ describe('Achievement Service', () => {
 
       await expect(service.evaluateUserAchievements(userId)).rejects.toThrow(/Invalid user_stats value/);
     });
+
+    it('unlocks ratio achievement exactly at min_sample_size boundary', async () => {
+      repo.achievements = [makeRatioAchievement(250, 'exact_sample', 'games_won', 'games_played', 0.7, 15)];
+      repo.setUserStats(
+        userId,
+        buildUserStats({
+          games_played: 15, // exactly at min_sample_size
+          games_won: 11, // 11/15 = 0.733 > 0.7
+        })
+      );
+
+      const result = await service.evaluateUserAchievements(userId);
+      expect(result.newlyUnlocked.map((a) => a.code)).toEqual(['exact_sample']);
+      expect(result.newlyUnlocked[0].progressValue).toBeCloseTo(0.733, 2);
+    });
+
+    it('handles ratio achievement with value very close to target threshold', async () => {
+      repo.achievements = [makeRatioAchievement(251, 'precise_ratio', 'games_won', 'games_played', 0.5, 10)];
+      repo.setUserStats(
+        userId,
+        buildUserStats({
+          games_played: 1000,
+          games_won: 500, // exactly 0.5
+        })
+      );
+
+      const result = await service.evaluateUserAchievements(userId);
+      expect(result.newlyUnlocked.map((a) => a.code)).toEqual(['precise_ratio']);
+      expect(result.newlyUnlocked[0].progressValue).toBeCloseTo(0.5, 10);
+    });
+
+    it('handles extremely large stat values within safe integer range', async () => {
+      const largeValue = Number.MAX_SAFE_INTEGER - 1;
+      repo.achievements = [
+        makeThresholdAchievement(260, 'massive_prestige', 'total_prestige_points', '>=', largeValue),
+      ];
+      repo.setUserStats(
+        userId,
+        buildUserStats({
+          total_prestige_points: largeValue,
+        })
+      );
+
+      const result = await service.evaluateUserAchievements(userId);
+      expect(result.newlyUnlocked.map((a) => a.code)).toEqual(['massive_prestige']);
+      expect(result.newlyUnlocked[0].progressValue).toBe(largeValue);
+    });
+
+    it('handles achievements with zero and negative threshold values', async () => {
+      repo.achievements = [
+        makeThresholdAchievement(261, 'zero_threshold', 'games_played', '>=', 0),
+        makeThresholdAchievement(262, 'negative_time', 'fastest_win_time', '<=', -1), // edge case
+      ];
+      repo.setUserStats(
+        userId,
+        buildUserStats({
+          games_played: 0,
+          fastest_win_time: -5,
+        })
+      );
+
+      const result = await service.evaluateUserAchievements(userId);
+      const codes = result.newlyUnlocked.map((a) => a.code);
+      expect(codes).toContain('zero_threshold');
+      expect(codes).toContain('negative_time');
+    });
   });
 });
