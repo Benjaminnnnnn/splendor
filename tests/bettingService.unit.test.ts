@@ -24,9 +24,9 @@ describe('BettingService Unit Tests', () => {
   let mockDb: any;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     mockDb = DatabaseConnection.getInstance();
     bettingService = new BettingService();
-    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -702,6 +702,95 @@ describe('BettingService Unit Tests', () => {
       await expect(
         bettingService.addVirtualCurrency('user-123', -100)
       ).rejects.toThrow('Amount must be positive');
+    });
+
+    it('should create user_stats if not exists when adding currency', async () => {
+      mockDb.get.mockReturnValueOnce(null);
+      mockDb.get.mockReturnValueOnce({ virtual_currency: 1000 });
+
+      const newBalance = await bettingService.addVirtualCurrency('new-user-456', 250);
+
+      expect(mockDb.run).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO user_stats'),
+        expect.arrayContaining(['new-user-456', 1000])
+      );
+      expect(newBalance).toBe(1000);
+    });
+  });
+
+  describe('Multiple Players Betting Scenarios', () => {
+    it('should enforce minimum bet of 10 coins', async () => {
+      await expect(
+        bettingService.placeBet('user-min-test', {
+          gameId: 'game-min',
+          playerId: 'player-min',
+          amount: 5,
+        })
+      ).rejects.toThrow();
+    });
+
+    it('should enforce maximum bet of 1000 coins', async () => {
+      await expect(
+        bettingService.placeBet('user-max-test', {
+          gameId: 'game-max',
+          playerId: 'player-max',
+          amount: 2000,
+        })
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('Edge Cases and Error Handling', () => {
+    it('should reject fractional bet amounts', async () => {
+      await expect(
+        bettingService.placeBet('user-fraction', {
+          gameId: 'game-fraction',
+          playerId: 'player-fraction',
+          amount: 99.99,
+        })
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('getBetsByGame', () => {
+    it('should return multiple bets for same game with different players', async () => {
+      const testGameId = 'game-multi-player-xyz';
+      const timestamp = Date.now();
+      
+      mockDb.query.mockReturnValueOnce([
+        {
+          id: 'bet-alpha',
+          game_id: testGameId,
+          user_id: 'user-1',
+          player_id: 'player-A',
+          amount: 100,
+          odds: 2.0,
+          status: BetStatus.PENDING,
+          payout: null,
+          created_at: timestamp,
+          settled_at: null,
+        },
+        {
+          id: 'bet-beta',
+          game_id: testGameId,
+          user_id: 'user-2',
+          player_id: 'player-B',
+          amount: 200,
+          odds: 1.5,
+          status: BetStatus.PENDING,
+          payout: null,
+          created_at: timestamp - 1000,
+          settled_at: null,
+        },
+      ]);
+
+      const bets = await bettingService.getBetsByGame(testGameId);
+
+      expect(bets.length).toBe(2);
+      expect(bets[0].user_id).toBe('user-1');
+      expect(bets[1].user_id).toBe('user-2');
+      expect(bets[0].player_id).toBe('player-A');
+      expect(bets[1].player_id).toBe('player-B');
     });
   });
 });
