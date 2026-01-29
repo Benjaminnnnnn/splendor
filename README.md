@@ -1,4 +1,5 @@
-### [Project Planning Doc](https://docs.google.com/document/d/1PAPP2f9cWRFYKT0ZIvfGKHRqpM4EXlPoIG2qE6m9Zqk/edit?tab=t.0#heading=h.gv3ovndfbn6s
+### Project Planning Doc
+[Link](https://docs.google.com/document/d/1PAPP2f9cWRFYKT0ZIvfGKHRqpM4EXlPoIG2qE6m9Zqk/edit?tab=t.0#heading=h.gv3ovndfbn6s
 )
 
 ### AI Generated Code
