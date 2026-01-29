@@ -1,11 +1,10 @@
-### Planning Doc
-
-https://docs.google.com/document/d/1PAPP2f9cWRFYKT0ZIvfGKHRqpM4EXlPoIG2qE6m9Zqk/edit?tab=t.0#heading=h.gv3ovndfbn6s
+### [Project Planning Doc](https://docs.google.com/document/d/1PAPP2f9cWRFYKT0ZIvfGKHRqpM4EXlPoIG2qE6m9Zqk/edit?tab=t.0#heading=h.gv3ovndfbn6s
+)
 
 ### AI Generated Code
 
-1. Frontend UI and assets for all features
-2. Infrastructure code
+1. Frontend UI and art assets
+2. Initial infrastructure code
 3. Documentation
 
 # Splendor Board Game
